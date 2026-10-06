@@ -236,7 +236,8 @@ export class LoginComponent {
 
   // ── Taller: usuarios de demostración (src/app/mock/usuarios-demo.ts) ──
   readonly contrasenaDemo = CONTRASENA_DEMO;
-  readonly usuariosDemo: ListItem[] = USUARIOS_DEMO.map((u) => ({
+  // El taller entra solo con Carla (dos perfiles); Ana y Luis siguen en el simulador, pero no se ofrecen aquí.
+  readonly usuariosDemo: ListItem[] = USUARIOS_DEMO.filter((u) => u.dni === '33333333').map((u) => ({
     id: u.dni,
     title: `${u.nombres} ${u.apellidoPaterno} ${u.apellidoMaterno}`,
     description: `DNI ${u.dni} · ${u.descripcion}`,

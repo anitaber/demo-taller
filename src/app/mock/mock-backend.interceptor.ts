@@ -178,10 +178,10 @@ const marcarLeidaDocumento: Manejador = ({ datos, sesion, params }) => {
 
 function notificar(datos: DatosTaller, s: SolicitudResponse, estado: EstadoDocumento, comentario: string | null): void {
   const textos: Partial<Record<EstadoDocumento, { titulo: string; mensaje: string }>> = {
-    VERIFICADO: { titulo: 'Solicitud por aprobar', mensaje: `La solicitud ${s.numero} fue verificada y espera su aprobación.` },
-    APROBADO: { titulo: 'Solicitud aprobada', mensaje: `La solicitud ${s.numero} fue aprobada.` },
-    OBSERVADO: { titulo: 'Solicitud observada', mensaje: `La solicitud ${s.numero} fue observada: ${comentario ?? 'revise el comentario'}.` },
-    RECHAZADO: { titulo: 'Solicitud rechazada', mensaje: `La solicitud ${s.numero} fue rechazada.` },
+    VERIFICADO: { titulo: 'Documento por aprobar', mensaje: `El documento ${s.numero} fue verificado y espera su aprobación.` },
+    APROBADO: { titulo: 'Documento aprobado', mensaje: `El documento ${s.numero} fue aprobado.` },
+    OBSERVADO: { titulo: 'Documento observado', mensaje: `El documento ${s.numero} fue observado: ${comentario ?? 'revise el comentario'}.` },
+    RECHAZADO: { titulo: 'Documento rechazado', mensaje: `El documento ${s.numero} fue rechazado.` },
   };
   const texto = textos[estado];
   if (!texto) return;

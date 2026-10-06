@@ -44,7 +44,7 @@ import { SnackbarComponent, SnackbarVariant } from '../../ui/snackbar/snackbar.c
  * - El aviso sigue `siaf-snackbar`: no toma el foco al aparecer y su X se alcanza con Tab.
  * @accesibilidad
  * - **4.1.2 Nombre, función y valor (A)**: cada confirmación es un `siaf-modal` (`role="dialog"`, `aria-modal`) cuyo
- *   nombre es el título del preset: «¿Grabar solicitud?», «¿Aprobar solicitud?», «¿Rechazar solicitud?»…
+ *   nombre es el título del preset: «¿Grabar documento?», «¿Aprobar documento?», «¿Rechazar documento?»…
  * - **2.4.3 Orden del foco (A)**: hereda de `siaf-modal` el foco al abrir y la vuelta al disparador al cerrar; el padre
  *   debe bajar `saveOpen`, `approveOpen`… a false en vez de destruir el componente.
  * - **2.1.2 Sin trampas de teclado (A)**: Escape cierra cada modal como Cancelar y emite `saveClosed`, `verifyClosed`,

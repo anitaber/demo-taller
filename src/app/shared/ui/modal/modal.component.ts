@@ -46,8 +46,8 @@ interface ModalPreset {
 
 const MODAL_PRESETS: Record<Exclude<ModalVariant, "custom">, ModalPreset> = {
   "delete-request": {
-    title: "¿Eliminar solicitud?",
-    description: "La solicitud será eliminada.",
+    title: "¿Eliminar documento?",
+    description: "El documento será eliminado.",
     icon: "delete",
     illustration: "assets/figma/modals/delete.svg",
     confirmLabel: "Aceptar",
@@ -60,8 +60,8 @@ const MODAL_PRESETS: Record<Exclude<ModalVariant, "custom">, ModalPreset> = {
     confirmLabel: "Aceptar",
   },
   review: {
-    title: "¿Revisar solicitud?",
-    description: "La solicitud será revisada.",
+    title: "¿Revisar documento?",
+    description: "El documento será revisado.",
     icon: "fact_check",
     illustration: "assets/figma/modals/review.svg",
     confirmLabel: "Aceptar",
@@ -74,50 +74,50 @@ const MODAL_PRESETS: Record<Exclude<ModalVariant, "custom">, ModalPreset> = {
     confirmLabel: "Aceptar",
   },
   save: {
-    title: "¿Grabar solicitud?",
-    description: "Los registros se grabarán en esta solicitud.",
+    title: "¿Grabar documento?",
+    description: "Los registros se grabarán en este documento.",
     icon: "save",
     illustration: "assets/figma/modals/save_1.svg",
     confirmLabel: "Aceptar",
   },
   verify: {
-    title: "¿Verificar solicitud?",
-    description: "La solicitud será verificada.",
+    title: "¿Verificar documento?",
+    description: "El documento será verificado.",
     icon: "verified",
     illustration: "assets/figma/modals/verify.svg",
     confirmLabel: "Aceptar",
   },
   "verify-multiple": {
-    title: "¿Verificar múltiples solicitudes?",
-    description: "Las solicitudes serán verificadas.",
+    title: "¿Verificar múltiples documentos?",
+    description: "Los documentos serán verificados.",
     icon: "domain_verification",
     illustration: "assets/figma/modals/verify.svg",
     confirmLabel: "Aceptar",
   },
   validate: {
-    title: "¿Validar solicitud?",
-    description: "La solicitud será validada.",
+    title: "¿Validar documento?",
+    description: "El documento será validado.",
     icon: "task_alt",
     illustration: "assets/figma/modals/validate.svg",
     confirmLabel: "Aceptar",
   },
   approve: {
-    title: "¿Aprobar solicitud?",
-    description: "La solicitud será aprobada.",
+    title: "¿Aprobar documento?",
+    description: "El documento será aprobado.",
     icon: "approval",
     illustration: "assets/figma/modals/approve.svg",
     confirmLabel: "Aceptar",
   },
   "approve-multiple": {
-    title: "¿Aprobar múltiples solicitudes?",
-    description: "Las solicitudes serán aprobadas.",
+    title: "¿Aprobar múltiples documentos?",
+    description: "Los documentos serán aprobados.",
     icon: "done_all",
     illustration: "assets/figma/modals/approve.svg",
     confirmLabel: "Aceptar",
   },
   cancel: {
-    title: "¿Cancelar solicitud?",
-    description: "Se perderán los registros de solicitud.",
+    title: "¿Cancelar documento?",
+    description: "Se perderán los registros del documento.",
     icon: "cancel",
     illustration: "assets/figma/modals/cancel.svg",
     confirmLabel: "Aceptar",
@@ -130,8 +130,8 @@ const MODAL_PRESETS: Record<Exclude<ModalVariant, "custom">, ModalPreset> = {
     confirmLabel: "Aceptar",
   },
   observe: {
-    title: "¿Observar solicitud?",
-    description: "La solicitud será observada.",
+    title: "¿Observar documento?",
+    description: "El documento será observado.",
     icon: "visibility",
     illustration: "assets/figma/modals/observe.svg",
     confirmLabel: "Aceptar",
@@ -139,8 +139,8 @@ const MODAL_PRESETS: Record<Exclude<ModalVariant, "custom">, ModalPreset> = {
     confirmDisabled: true,
   },
   reject: {
-    title: "¿Rechazar solicitud?",
-    description: "La solicitud será rechazada.",
+    title: "¿Rechazar documento?",
+    description: "El documento será rechazado.",
     icon: "block",
     illustration: "assets/figma/modals/reject.svg",
     confirmLabel: "Aceptar",
@@ -159,7 +159,7 @@ const MODAL_PRESETS: Record<Exclude<ModalVariant, "custom">, ModalPreset> = {
  * @usar
  * - Para confirmar una acción sobre una solicitud con su preset (`save`, `verify`, `approve`, `delete-request`,
  *   `observe`, `reject`…); en las request-pages llegan ya armados por `siaf-request-approval-modals`.
- * - En las acciones masivas de la bandeja: «¿Deseas verificar / aprobar múltiples solicitudes?» de
+ * - En las acciones masivas de la bandeja: «¿Deseas verificar / aprobar múltiples documentos??» de
  *   `siaf-documents-records-page` (`custom` con ilustración).
  * - Con `custom` y contenido proyectado para diálogos cortos con campos, como «Cambiar contraseña» del escritorio
  *   virtual.

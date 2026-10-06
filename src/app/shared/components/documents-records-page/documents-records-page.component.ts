@@ -128,7 +128,7 @@ type DocumentsRecordsRoleMode = 'creator' | 'approver' | 'readOnly';
       <siaf-modal
         [open]="verifyModalOpen"
         variant="custom"
-        title="¿Deseas verificar múltiples solicitudes?"
+        title="¿Deseas verificar múltiples documentos?"
         [description]="verifyModalDescription"
         illustrationSrc="assets/figma/modals/approve-multiple.svg"
         confirmVariant="primary"
@@ -142,7 +142,7 @@ type DocumentsRecordsRoleMode = 'creator' | 'approver' | 'readOnly';
       <siaf-modal
         [open]="approveModalOpen"
         variant="custom"
-        title="¿Deseas aprobar múltiples solicitudes?"
+        title="¿Deseas aprobar múltiples documentos?"
         [description]="approveModalDescription"
         illustrationSrc="assets/figma/modals/approve-multiple.svg"
         confirmVariant="primary"
@@ -158,7 +158,7 @@ type DocumentsRecordsRoleMode = 'creator' | 'approver' | 'readOnly';
           @if (approvalSnackbarTone === 'error') {
             <span>{{ approvalSnackbarError }}</span>
           } @else {
-            <span>Las solicitudes número </span>
+            <span>Los documentos número </span>
             <strong class="font-bold">{{ approvalSnackbarNumbers }}</strong>
             <span> se han </span>
             <strong class="font-bold">{{ approvalSnackbarAction }}</strong>
@@ -977,7 +977,7 @@ export class DocumentsRecordsPageComponent implements OnChanges {
         this.approvalSnackbarTone = 'error';
         this.approvalSnackbarError = Array.isArray(mensaje)
           ? mensaje.join(' · ')
-          : (mensaje || 'No se pudo completar la acción sobre las solicitudes seleccionadas.');
+          : (mensaje || 'No se pudo completar la acción sobre los documentos seleccionados.');
         this.approvalSnackbarOpen = true;
         // Algunas pueden haber cambiado antes del fallo: refrescar igual.
         this.solicitudesFacade.recargarBandeja();

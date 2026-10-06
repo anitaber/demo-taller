@@ -141,7 +141,7 @@ describe('mockBackendInterceptor', () => {
     const bandeja = esperar(http.get<SolicitudResponse[]>(`${API}/solicitudes/bandeja-aprobador?tipos=SACF`, { headers: luis }));
     expect(bandeja.valor?.map((s) => s.id)).toEqual([id]);
     const avisos = esperar(http.get<{ titulo: string; documento: { id: string; catDocumento: { codigo: string } } }[]>(`${API}/notificaciones`, { headers: luis }));
-    expect(avisos.valor?.some((n) => n.documento.id === id && n.titulo === 'Solicitud por aprobar' && n.documento.catDocumento.codigo === 'SACF')).toBeTrue();
+    expect(avisos.valor?.some((n) => n.documento.id === id && n.titulo === 'Documento por aprobar' && n.documento.catDocumento.codigo === 'SACF')).toBeTrue();
 
     esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'APROBADO' }, { headers: luis }));
 
@@ -155,7 +155,7 @@ describe('mockBackendInterceptor', () => {
     expect(detalle.valor?.detalleAnuncio?.items.length).toBe(2);
 
     const avisosAna = esperar(http.get<{ titulo: string; documento: { id: string } }[]>(`${API}/notificaciones`, { headers: ana }));
-    expect(avisosAna.valor?.some((n) => n.documento.id === id && n.titulo === 'Solicitud aprobada')).toBeTrue();
+    expect(avisosAna.valor?.some((n) => n.documento.id === id && n.titulo === 'Documento aprobado')).toBeTrue();
   }));
 
   it('observar pide comentario y una solicitud observada ya no se puede eliminar', fakeAsync(() => {

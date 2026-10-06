@@ -63,7 +63,7 @@ const SNACKBAR_PRESETS: Record<Exclude<SnackbarVariant, 'custom'>, SnackbarPrese
     text: 'Los cambios se deshicieron con éxito.'
   },
   'request-uploaded': {
-    beforeStrong: 'La solicitud ',
+    beforeStrong: 'El documento ',
     strong: 'DocEntregado001.xls',
     afterStrong: ' se ha subido con éxito.'
   },
@@ -191,7 +191,7 @@ const SNACKBAR_PRESETS: Record<Exclude<SnackbarVariant, 'custom'>, SnackbarPrese
               <p class="m-0">{{ resolvedPreset.text }}</p>
             } @else if (resolvedPreset.requestAction) {
               <p class="m-0">
-                <span>La solicitud de tipo </span>
+                <span>El documento de tipo </span>
                 <span>{{ requestType || resolvedPreset.requestType }}</span>
                 <span> número </span>
                 <strong class="font-bold">{{ requestNumber }}</strong>
@@ -201,7 +201,7 @@ const SNACKBAR_PRESETS: Record<Exclude<SnackbarVariant, 'custom'>, SnackbarPrese
               </p>
             } @else if (resolvedPreset.bulkStatus) {
               <p class="m-0">
-                <span>El estado de las solicitudes se ha actualizado a </span>
+                <span>El estado de los documentos se ha actualizado a </span>
                 <strong class="font-bold">{{ bulkStatus || resolvedPreset.bulkStatus }}</strong>
                 <span> con éxito.</span>
               </p>
