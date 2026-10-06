@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input, OnChanges, OnInit, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { CustomFilterApplyEvent, CustomFilterComponent, FilterRow } from '../../shared/components/custom-filter/custom-filter.component';
 import { FilterPillComponent } from '../../shared/components/filter-pill/filter-pill.component';
@@ -14,7 +15,14 @@ import { PermissionService } from '../../core/auth/permission.service';
 import { TooltipDirective } from '../../shared/ui/tooltip/tooltip.directive';
 import { ESTADO, ESTADOS_RESPUESTA_APROBADOR } from '../../core/models/documento.model';
 
+/** Cada tipo de documento abre su solicitud en la ruta de su proceso (la bandeja es común a todos los procesos). */
+const RUTA_SOLICITUD_POR_DOCUMENTO: Record<string, string> = {
+  'Solicitud de anuncio de contratación futura': '/procesos/actuaciones-preparatorias/anuncio-contratacion-futura',
+};
+
 type TrayDocumentRow = {
+  /** Ruta de la solicitud (con su id), para abrirla desde la bandeja. */
+  route: string;
   document: string;
   number: string;
   actionType: string;
@@ -86,7 +94,7 @@ type AppliedCustomFilter = {
 @Component({
   selector: 'siaf-tray-documents-view',
   standalone: true,
-  imports: [CustomFilterComponent, FilterPillComponent, FlowStatusTagComponent, IconComponent, IconDropdownMenuComponent, PaginationComponent, RecordsSearchToolbarComponent, TableControlsComponent, TooltipDirective],
+  imports: [CustomFilterComponent, FilterPillComponent, FlowStatusTagComponent, IconComponent, IconDropdownMenuComponent, PaginationComponent, RecordsSearchToolbarComponent, RouterLink, TableControlsComponent, TooltipDirective],
   template: `
     <section class="min-h-[calc(100vh-56px)] bg-[var(--sys-color-bg-surfaces-surface-lowest)]">
       <section class="bg-surface">
@@ -175,8 +183,20 @@ type AppliedCustomFilter = {
                   @for (row of paginatedRows; track row.document + row.number) {
                     <tr class="h-[58px] border-b border-[var(--sys-color-divider-default)] bg-surface text-[var(--sys-color-text-neutral-medium)] hover:bg-[var(--sys-color-bg-states-light-hover)]">
                       <td class="px-siaf-sm py-siaf-sm"><input class="size-4 accent-[var(--sys-color-icon-states-enabled)]" type="checkbox" /></td>
-                      <td class="px-siaf-md py-siaf-sm" [class.font-bold]="$index === 0">{{ row.document }}</td>
-                      <td class="px-siaf-md py-siaf-sm" [class.font-bold]="$index === 0">{{ row.number }}</td>
+                      <td class="px-siaf-md py-siaf-sm" [class.font-bold]="$index === 0">
+                        @if (row.route) {
+                          <a class="hover:text-brand-primary hover:underline" [routerLink]="row.route">{{ row.document }}</a>
+                        } @else {
+                          {{ row.document }}
+                        }
+                      </td>
+                      <td class="px-siaf-md py-siaf-sm" [class.font-bold]="$index === 0">
+                        @if (row.route) {
+                          <a class="hover:text-brand-primary hover:underline" [routerLink]="row.route">{{ row.number }}</a>
+                        } @else {
+                          {{ row.number }}
+                        }
+                      </td>
                       <td class="px-siaf-md py-siaf-sm" [class.font-bold]="$index === 0">{{ row.actionType }}</td>
                       <td class="px-siaf-md py-siaf-sm">
                         <siaf-flow-status-tag [status]="row.status" size="small" />
@@ -280,9 +300,9 @@ export class TrayDocumentsViewComponent implements OnInit, OnChanges {
     { label: ESTADO.APROBADO, value: ESTADO.APROBADO },
     { label: ESTADO.OBSERVADO, value: ESTADO.OBSERVADO },
     { label: ESTADO.RECHAZADO, value: ESTADO.RECHAZADO },
-    { label: 'Creacion', value: 'Creacion' },
+    { label: 'Creación', value: 'Creación' },
     { label: 'Solicitud de notificacion', value: 'Solicitud de notificacion' },
-    { label: 'Sistema Nacional de Contabilidad', value: 'Sistema Nacional de Contabilidad' },
+    { label: 'Sistema Nacional de Abastecimiento', value: 'Sistema Nacional de Abastecimiento' },
     { label: '1. Institucional', value: '1. Institucional' }
   ];
 
@@ -321,7 +341,7 @@ export class TrayDocumentsViewComponent implements OnInit, OnChanges {
     return this.SECTION_STATES[roleKey][this.title] ?? [];
   }
 
-  readonly actionTypeFilterOptions = ['Creacion'];
+  readonly actionTypeFilterOptions = ['Creación'];
 
   /** Pendientes primero: Observado/Rechazado arriba en Recibidos del creador; Verificado arriba para el aprobador. */
   private readonly STATUS_PRIORITY_BY_ROLE: Record<string, Record<string, number>> = {
@@ -399,12 +419,14 @@ export class TrayDocumentsViewComponent implements OnInit, OnChanges {
   }
 
   private mapSolicitudToRow(s: SolicitudDemo): TrayDocumentRow {
+    const rutaBase = RUTA_SOLICITUD_POR_DOCUMENTO[s.tipoDocumento];
     return {
+      route: rutaBase ? `${rutaBase}/${s.id}` : '',
       document: s.tipoDocumento,
       number: s.numero || '-',
-      actionType: s.tipoAccion,
+      actionType: s.tipoAccion === 'creacion' ? 'Creación' : s.tipoAccion,
       status: s.estado as TrayDocumentStatus,
-      system: 'Sistema Nacional de Contabilidad',
+      system: 'Sistema Nacional de Abastecimiento',
       date: s.fecha,
       institutionalScope: s.cuentas[0]?.institutionalScopes || '-',
       entity: s.entidad,

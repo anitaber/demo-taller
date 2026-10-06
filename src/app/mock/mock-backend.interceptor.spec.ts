@@ -5,9 +5,9 @@ import { Observable } from 'rxjs';
 
 import type { LoginResponse } from '../core/api/auth-api.service';
 import type { SolicitudResponse } from '../core/api/solicitudes-api.service';
-import type { CuentaBancariaDatos, CuentaBancariaRegistro } from '../modules/tesoreria/cuentas-bancarias/models/cuenta-bancaria.model';
+import type { AnuncioItemDatos, AnuncioRegistro } from '../modules/abastecimiento/actuaciones-preparatorias/models/anuncio-contratacion-futura.model';
 import { mockBackendInterceptor } from './mock-backend.interceptor';
-import { reiniciarDatosDemo } from './mock-db';
+import { leerDatos, reiniciarDatosDemo } from './mock-db';
 import { CONTRASENA_DEMO } from './usuarios-demo';
 
 /**
@@ -16,18 +16,22 @@ import { CONTRASENA_DEMO } from './usuarios-demo';
  */
 describe('mockBackendInterceptor', () => {
   const API = '/api/v1';
+  const TIPO_SACF = 'td-sacf';
   let http: HttpClient;
   let red: HttpTestingController;
 
-  const CUENTA: CuentaBancariaDatos = {
-    bancoCodigo: '002',
-    tipoCuenta: 'CORRIENTE',
-    moneda: 'PEN',
-    numeroCuenta: '19412345678901',
-    denominacion: 'Cuenta de prueba',
-    fechaApertura: '2026-09-10',
-    esRecaudadora: false,
-  };
+  const ITEM = (id: string, contratacionCodigo: string): AnuncioItemDatos => ({
+    id,
+    contratacionCodigo,
+    descripcion: 'Adquisición de equipos de cadena de frío para establecimientos de salud',
+    objeto: 'Bien',
+    origen: 'PAC',
+    tipoProcedimiento: 'Licitación pública para bienes',
+    cantidadAproximada: 100000,
+    alcance: 'Equipos para la red de frío de los establecimientos.',
+    plazoEntrega: 30,
+    fechaConvocatoria: '2026-12-01',
+  });
 
   /** Resuelve la petición simulada (tiene una latencia de 250 ms) y devuelve la respuesta o el error. */
   function esperar<T>(peticion: Observable<T>): { valor?: T; error?: HttpErrorResponse } {
@@ -42,10 +46,17 @@ describe('mockBackendInterceptor', () => {
     return new HttpHeaders({ Authorization: `Bearer ${valor!.accessToken}` });
   }
 
-  function archivo(): FormData {
-    const form = new FormData();
-    form.append('archivo', new File(['%PDF'], 'constancia.pdf', { type: 'application/pdf' }));
-    return form;
+  function crear(headers: HttpHeaders): string {
+    const creada = esperar(http.post<SolicitudResponse>(`${API}/solicitudes`, { tipoDocumentoId: TIPO_SACF, tipoAccion: 'creacion', organoLinea: 'OGA', justificacion: 'Anuncio de contratación futura' }, { headers }));
+    return creada.valor!.id;
+  }
+
+  /** Crea una solicitud con anuncios y la deja ELABORADA; devuelve su id. */
+  function elaborar(headers: HttpHeaders, items: AnuncioItemDatos[] = [ITEM('a1', '0002')]): string {
+    const id = crear(headers);
+    esperar(http.post(`${API}/solicitudes/${id}/anuncio`, { items }, { headers }));
+    esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'ELABORADO' }, { headers }));
+    return id;
   }
 
   beforeEach(() => {
@@ -79,66 +90,160 @@ describe('mockBackendInterceptor', () => {
     expect(cambio.valor?.perfilActivo.rolCodigo).toBe('APROBADOR');
   }));
 
-  it('la bandeja no muestra solicitudes en NUEVO y pagina si se pide', fakeAsync(() => {
-    const headers = entrar('11111111');
-    esperar(http.post(`${API}/solicitudes`, { tipoAccion: 'creacion', organoLinea: 'OGA', justificacion: 'Borrador' }, { headers }));
+  it('arranca sin solicitudes ni registros ni avisos', fakeAsync(() => {
+    const ana = entrar('11111111');
 
-    const { valor } = esperar(http.get<{ data: SolicitudResponse[]; total: number }>(`${API}/solicitudes/bandeja-creador?tipos=SRCB&page=1&limit=5`, { headers }));
-
-    expect(valor?.data.length).toBe(5);
-    expect(valor?.total).toBe(12);
+    expect(esperar(http.get<SolicitudResponse[]>(`${API}/solicitudes/bandeja-creador`, { headers: ana })).valor).toEqual([]);
+    expect(esperar(http.get<AnuncioRegistro[]>(`${API}/anuncios-contratacion`, { headers: ana })).valor).toEqual([]);
+    expect(esperar(http.get<unknown[]>(`${API}/notificaciones`, { headers: ana })).valor).toEqual([]);
   }));
 
-  it('recorre el flujo completo: elaborar, verificar y aprobar crea la cuenta y avisa a cada rol', fakeAsync(() => {
+  it('el catálogo solo ofrece crear la solicitud de anuncio de contratación futura', fakeAsync(() => {
+    const { valor } = esperar(http.get<{ codigo: string; proceso: { codigo: string } }[]>(`${API}/tipos-documento`));
+
+    expect(valor?.map((t) => t.codigo)).toEqual(['SACF']);
+    expect(valor?.[0].proceso.codigo).toBe('actuaciones-preparatorias');
+  }));
+
+  it('la bandeja no muestra solicitudes en NUEVO y pagina si se pide', fakeAsync(() => {
     const ana = entrar('11111111');
-    const creada = esperar(http.post<SolicitudResponse>(`${API}/solicitudes`, { tipoAccion: 'creacion', organoLinea: 'OGA', justificacion: 'Cuenta nueva' }, { headers: ana }));
-    const id = creada.valor!.id;
+    crear(ana);
 
-    // Sin datos ni sustento no se puede elaborar.
+    const nueva = esperar(http.get<{ data: SolicitudResponse[]; total: number }>(`${API}/solicitudes/bandeja-creador?tipos=SACF&page=1&limit=5`, { headers: ana }));
+    expect(nueva.valor?.total).toBe(0);
+
+    for (let i = 0; i < 7; i++) elaborar(ana);
+    const pagina = esperar(http.get<{ data: SolicitudResponse[]; total: number }>(`${API}/solicitudes/bandeja-creador?tipos=SACF&page=1&limit=5`, { headers: ana }));
+
+    expect(pagina.valor?.data.length).toBe(5);
+    expect(pagina.valor?.total).toBe(7);
+  }));
+
+  it('recorre el flujo completo: elaborar, verificar y aprobar crea los registros y avisa a cada rol', fakeAsync(() => {
+    const ana = entrar('11111111');
+    const id = crear(ana);
+
+    // Sin anuncios no se puede grabar ni elaborar.
+    expect(esperar(http.post(`${API}/solicitudes/${id}/anuncio`, { items: [] }, { headers: ana })).error?.status).toBe(400);
     expect(esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'ELABORADO' }, { headers: ana })).error?.status).toBe(400);
+    // Cada anuncio exige alcance, plazo mayor que 0 y fecha de convocatoria.
+    expect(esperar(http.post(`${API}/solicitudes/${id}/anuncio`, { items: [{ ...ITEM('a1', '0002'), plazoEntrega: 0 }] }, { headers: ana })).error?.status).toBe(400);
 
-    esperar(http.post(`${API}/solicitudes/${id}/cuenta-bancaria`, CUENTA, { headers: ana }));
-    esperar(http.post(`${API}/solicitudes/${id}/sustentos`, archivo(), { headers: ana }));
+    esperar(http.post(`${API}/solicitudes/${id}/anuncio`, { items: [ITEM('a1', '0002'), ITEM('a2', '0004')] }, { headers: ana }));
     const elaborada = esperar(http.patch<{ numero: string }>(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'ELABORADO' }, { headers: ana }));
-    expect(elaborada.valor?.numero).toMatch(/^PCB-SRCB-00013-\d{4}-MEF-OGA$/);
+    expect(elaborada.valor?.numero).toBe('0001');
 
     // El creador no puede aprobar.
     expect(esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'APROBADO' }, { headers: ana })).error?.status).toBe(409);
     esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'VERIFICADO' }, { headers: ana }));
 
     const luis = entrar('22222222');
-    const avisos = esperar(http.get<{ titulo: string; documento: { id: string } }[]>(`${API}/notificaciones`, { headers: luis }));
-    expect(avisos.valor?.some((n) => n.documento.id === id && n.titulo === 'Solicitud por aprobar')).toBeTrue();
+    const bandeja = esperar(http.get<SolicitudResponse[]>(`${API}/solicitudes/bandeja-aprobador?tipos=SACF`, { headers: luis }));
+    expect(bandeja.valor?.map((s) => s.id)).toEqual([id]);
+    const avisos = esperar(http.get<{ titulo: string; documento: { id: string; catDocumento: { codigo: string } } }[]>(`${API}/notificaciones`, { headers: luis }));
+    expect(avisos.valor?.some((n) => n.documento.id === id && n.titulo === 'Solicitud por aprobar' && n.documento.catDocumento.codigo === 'SACF')).toBeTrue();
 
     esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'APROBADO' }, { headers: luis }));
 
-    const registros = esperar(http.get<CuentaBancariaRegistro[]>(`${API}/cuentas-bancarias`, { headers: luis }));
-    const cuenta = registros.valor?.find((r) => r.documentoId === id);
-    expect(cuenta?.codigo).toBe('CB-0009');
-    expect(cuenta?.numeroCuenta).toBe(CUENTA.numeroCuenta);
+    const registros = esperar(http.get<AnuncioRegistro[]>(`${API}/anuncios-contratacion`, { headers: luis }));
+    expect(registros.valor?.map((r) => r.codigo)).toEqual(['ACF-0001', 'ACF-0002']);
+    expect(registros.valor?.map((r) => r.contratacionCodigo)).toEqual(['0002', '0004']);
+    expect(registros.valor?.every((r) => r.documentoId === id && r.estado === 'Activo')).toBeTrue();
 
     const detalle = esperar(http.get<SolicitudResponse>(`${API}/solicitudes/${id}`, { headers: luis }));
     expect(detalle.valor?.historialEstados?.map((h) => h.estadoNuevo)).toEqual(['NUEVO', 'ELABORADO', 'VERIFICADO', 'APROBADO']);
+    expect(detalle.valor?.detalleAnuncio?.items.length).toBe(2);
 
     const avisosAna = esperar(http.get<{ titulo: string; documento: { id: string } }[]>(`${API}/notificaciones`, { headers: ana }));
     expect(avisosAna.valor?.some((n) => n.documento.id === id && n.titulo === 'Solicitud aprobada')).toBeTrue();
   }));
 
   it('observar pide comentario y una solicitud observada ya no se puede eliminar', fakeAsync(() => {
-    const luis = entrar('22222222');
-    const bandeja = esperar(http.get<SolicitudResponse[]>(`${API}/solicitudes/bandeja-aprobador?tipos=SRCB`, { headers: luis }));
-    const verificada = bandeja.valor!.find((s) => s.estado === 'VERIFICADO')!;
-
-    expect(esperar(http.patch(`${API}/solicitudes/${verificada.id}/estado`, { estadoNuevo: 'OBSERVADO' }, { headers: luis })).error?.status).toBe(400);
-    esperar(http.patch(`${API}/solicitudes/${verificada.id}/estado`, { estadoNuevo: 'OBSERVADO', comentario: 'Falta la constancia.' }, { headers: luis }));
-
     const ana = entrar('11111111');
-    esperar(http.patch(`${API}/solicitudes/${verificada.id}/estado`, { estadoNuevo: 'ELABORADO' }, { headers: ana }));
-    const eliminar = esperar(http.patch(`${API}/solicitudes/${verificada.id}/estado`, { estadoNuevo: 'ELIMINADO' }, { headers: ana }));
+    const id = elaborar(ana);
+    esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'VERIFICADO' }, { headers: ana }));
+
+    const luis = entrar('22222222');
+    expect(esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'OBSERVADO' }, { headers: luis })).error?.status).toBe(400);
+    esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'OBSERVADO', comentario: 'Falta precisar el alcance.' }, { headers: luis }));
+
+    esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'ELABORADO' }, { headers: ana }));
+    const eliminar = esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'ELIMINADO' }, { headers: ana }));
 
     expect(eliminar.error?.status).toBe(409);
     expect(eliminar.error?.error.message).toContain('observada');
   }));
+
+  it('solo el creador de una solicitud puede editarla y verificarla: otro creador ni la ve en su bandeja', fakeAsync(() => {
+    const ana = entrar('11111111');
+    const id = elaborar(ana);
+
+    // Carla tiene perfil creador, pero la solicitud es de Ana.
+    const carla = entrar('33333333');
+    expect(esperar(http.get<SolicitudResponse[]>(`${API}/solicitudes/bandeja-creador`, { headers: carla })).valor).toEqual([]);
+    expect(esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'VERIFICADO' }, { headers: carla })).error?.status).toBe(403);
+    expect(esperar(http.post(`${API}/solicitudes/${id}/anuncio`, { items: [ITEM('a9', '0003')] }, { headers: carla })).error?.status).toBe(403);
+
+    // Ana sigue pudiendo, y el historial queda con una sola persona como creadora.
+    esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'VERIFICADO' }, { headers: ana }));
+    const detalle = esperar(http.get<SolicitudResponse>(`${API}/solicitudes/${id}`, { headers: ana }));
+    const quienes = detalle.valor?.historialEstados?.filter((h) => ['ELABORADO', 'VERIFICADO'].includes(h.estadoNuevo)).map((h) => h.creador?.nombres);
+    expect(quienes).toEqual(['Ana', 'Ana']);
+  }));
+
+  it('una solicitud rechazada no genera registros', fakeAsync(() => {
+    const ana = entrar('11111111');
+    const id = elaborar(ana);
+    esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'VERIFICADO' }, { headers: ana }));
+
+    const luis = entrar('22222222');
+    esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'RECHAZADO', comentario: 'Ya existe un anuncio igual.', motivo: 'Información incorrecta' }, { headers: luis }));
+
+    expect(esperar(http.get<AnuncioRegistro[]>(`${API}/anuncios-contratacion`, { headers: luis })).valor).toEqual([]);
+  }));
+
+  it('migra los datos guardados con el número largo al número corto sin perder nada', () => {
+    localStorage.setItem('taller-siaf-rp:datos', JSON.stringify({
+      version: 2,
+      solicitudes: [{ id: 'sol-1', numero: 'PAB-SACF-00002-2026-MEF-OGA' }],
+      registros: [],
+      anuncios: [{ id: 'acf-1', numeroDocumento: 'PAB-SACF-00002-2026-MEF-OGA' }],
+      notificaciones: [{ id: 'not-1', mensaje: 'La solicitud PAB-SACF-00002-2026-MEF-OGA fue aprobada.' }],
+      correlativoDocumento: 2,
+      correlativoRegistro: 0,
+      correlativoAnuncio: 1,
+      secuencia: 7,
+    }));
+
+    const datos = leerDatos();
+
+    expect(datos.version).toBe(4);
+    expect(datos.solicitudes[0].numero).toBe('0002');
+    expect(datos.anuncios[0].numeroDocumento).toBe('0002');
+    expect(datos.notificaciones[0]['mensaje']).toBe('La solicitud 0002 fue aprobada.');
+    expect(datos.correlativoDocumento).toBe(2);
+  });
+
+  it('migra los datos antiguos: lo hecho con perfil creador queda a nombre del creador de la solicitud', () => {
+    const persona = (nombres: string) => ({ nombres, apellidoPaterno: 'Apellido', apellidoMaterno: 'Díaz' });
+    const fila = (id: string, estado: string, rol: string, nombres: string) => ({
+      id, estadoNuevo: estado, createdAt: '2026-10-06T10:00:00.000Z', creador: persona(nombres), perfil: { cfgPerfil: { rol: { codigo: rol, nombre: rol } } },
+    });
+    localStorage.setItem('taller-siaf-rp:datos', JSON.stringify({
+      version: 3,
+      solicitudes: [{
+        id: 'sol-1',
+        numero: '0001',
+        creador: { id: 'usr-ana', ...persona('Ana') },
+        historialEstados: [fila('h1', 'ELABORADO', 'CREADOR', 'Carla'), fila('h2', 'VERIFICADO', 'CREADOR', 'Ana'), fila('h3', 'APROBADO', 'APROBADOR', 'Carla')],
+      }],
+      registros: [], anuncios: [], notificaciones: [], correlativoDocumento: 1, correlativoRegistro: 0, correlativoAnuncio: 0, secuencia: 3,
+    }));
+
+    const historial = leerDatos().solicitudes[0].historialEstados!;
+
+    expect(historial.map((h) => h.creador?.nombres)).toEqual(['Ana', 'Ana', 'Carla']);
+  });
 
   it('deja pasar lo que no es de la API (los assets)', () => {
     http.get('assets/datos.json').subscribe();

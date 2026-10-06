@@ -36,7 +36,18 @@ export type DocumentsRecordsColumn = {
   group: ColumnGroup;
   widthClass?: string;
   align?: 'left' | 'right' | 'center';
-  kind?: 'text' | 'document-link' | 'flow-status' | 'record-status';
+  kind?: 'text' | 'document-link' | 'flow-status' | 'record-status' | 'document-icon';
+  /**
+   * Título de un grupo de columnas. Las columnas consecutivas con el mismo `headerGroup` quedan bajo una cabecera
+   * común y la tabla pasa a tener dos filas de cabecera (las columnas sin grupo ocupan las dos).
+   */
+  headerGroup?: string;
+  /**
+   * Columna fija a la derecha, antes de la de historial: siempre visible al desplazar la tabla. Necesita
+   * `stickyWidth` (px) para calcular su posición.
+   */
+  sticky?: 'right';
+  stickyWidth?: number;
 };
 
 export type DocumentsRecordsFilterOption = {
@@ -88,7 +99,7 @@ export type DocumentsRecordsConfig = {
   recordHistoryDocumentLabel: string;
   /** Variante del panel "Historial del registro" de la pestaña Registros:
    *  'cuenta' (default, plan de cuentas) o 'asiento' (asiento de ajuste). */
-  recordHistoryKind?: 'cuenta' | 'asiento' | 'documento';
+  recordHistoryKind?: 'cuenta' | 'asiento' | 'documento' | 'personalizado';
   // Filtros para tab Documentos
   statusFilterOptions: string[];
   actionTypeFilterOptions: string[];
@@ -99,6 +110,10 @@ export type DocumentsRecordsConfig = {
   recordFilter1Options?: string[];
   recordFilter1Label?: string;
   recordFilter1Key?: string;
+  /** Valor con el que arranca aplicado el primer filtro de Registros (se ve como chip con su ✕). */
+  recordFilter1Default?: string;
+  /** Casillas en la pestaña Registros (una por fila y «seleccionar todo» en la barra de la grilla). */
+  recordsSelectable?: boolean;
   recordFilter2Options?: string[];
   recordFilter2Label?: string;
   recordFilter2Key?: string;

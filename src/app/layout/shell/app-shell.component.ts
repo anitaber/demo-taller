@@ -3,8 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 
-import { CREATE_DOCUMENT_OPTIONS, REQUEST_ROUTE } from '../../modules/tesoreria/cuentas-bancarias/config/cuentas-bancarias.rutas';
-import { NOMBRE_DOCUMENTO as ANUNCIO_NOMBRE_DOCUMENTO, REQUEST_ROUTE as ANUNCIO_REQUEST_ROUTE } from '../../modules/abastecimiento/actuaciones-preparatorias/config/anuncio-contratacion-futura.rutas';
+import { CODIGO_DOCUMENTO } from '../../modules/abastecimiento/actuaciones-preparatorias/models/anuncio-contratacion-futura.model';
+import { CREATE_DOCUMENT_OPTIONS, PROCESS_ID, REQUEST_ROUTE } from '../../modules/abastecimiento/actuaciones-preparatorias/config/anuncio-contratacion-futura.rutas';
 import { CreateDocumentAccepted, CreateDocumentComponent, CreateDocumentProcessOption } from '../../shared/components/create-document/create-document.component';
 import { CatalogosApiService, TipoDocumentoResponse } from '../../core/api/catalogos-api.service';
 import { MobileNavigationMenuComponent } from '../mobile-navigation-menu/mobile-navigation-menu.component';
@@ -18,16 +18,6 @@ import { CurrentUserService } from '../../core/auth/current-user.service';
 import { PermissionService } from '../../core/auth/permission.service';
 import { ShellNavigationService } from './shell-navigation.service';
 import { ADMIN_MENU_TREE } from '../../shared/utils/process-tree.util';
-
-/** Proceso solo de frontend (sin catálogo en el API simulado): se suma a las opciones de «Crear». */
-const ACTUACIONES_PREPARATORIAS_OPTION: CreateDocumentProcessOption = {
-  id: 'actuaciones-preparatorias',
-  label: 'Actuaciones preparatorias',
-  route: ANUNCIO_REQUEST_ROUTE,
-  documents: [ANUNCIO_NOMBRE_DOCUMENTO],
-  documentOptions: [{ label: ANUNCIO_NOMBRE_DOCUMENTO, route: ANUNCIO_REQUEST_ROUTE, actionTypes: ['Creación'] }],
-  actionTypes: ['Creación'],
-};
 
 /**
  * Armazón de la app autenticada: navbar, sidebar y los paneles flotantes sobre los que vive el router-outlet.
@@ -161,7 +151,7 @@ export class AppShellComponent implements OnInit {
   adminMenuOpen = false;
 
   // Fallback en caso de que el API tarde o falle — la maqueta sigue funcional
-  private readonly fallbackOptions: CreateDocumentProcessOption[] = [...CREATE_DOCUMENT_OPTIONS, ACTUACIONES_PREPARATORIAS_OPTION];
+  private readonly fallbackOptions: CreateDocumentProcessOption[] = [...CREATE_DOCUMENT_OPTIONS];
 
   readonly createDocumentOptions = signal<CreateDocumentProcessOption[]>(this.fallbackOptions);
 
@@ -169,7 +159,7 @@ export class AppShellComponent implements OnInit {
     this.catalogosApi.listarTiposDocumento().subscribe({
       next: tipos => {
         const opciones = this.mapTiposToProcessOptions(tipos);
-        if (opciones.length > 0) this.createDocumentOptions.set([...opciones, ACTUACIONES_PREPARATORIAS_OPTION]);
+        if (opciones.length > 0) this.createDocumentOptions.set(opciones);
       },
       error: () => {
         // Mantener fallback si el API falla
@@ -190,9 +180,9 @@ export class AppShellComponent implements OnInit {
     }
 
     const ROUTE_BY_PROCESO: Record<string, { processRoute: string; tipoRoutes: Record<string, string> }> = {
-      'registro-cuentas-bancarias': {
+      [PROCESS_ID]: {
         processRoute: REQUEST_ROUTE,
-        tipoRoutes: { SRCB: REQUEST_ROUTE },
+        tipoRoutes: { [CODIGO_DOCUMENTO]: REQUEST_ROUTE },
       },
     };
 
@@ -257,6 +247,10 @@ export class AppShellComponent implements OnInit {
     this.shellNavigation.createDocumentRequested$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.openCreateDocument());
+
+    this.shellNavigation.trayRequested$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((section) => this.onTrayItemSelected(section));
   }
 
   onNavigationChange(navigation: SidebarNavigation): void {

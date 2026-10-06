@@ -1,25 +1,45 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Observable } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
 
+import { CatalogosApiService, TipoDocumentoResponse } from '../../../../../core/api/catalogos-api.service';
+import { SolicitudResponse, SolicitudesApiService } from '../../../../../core/api/solicitudes-api.service';
+import { CurrentUserService } from '../../../../../core/auth/current-user.service';
+import { PermissionService } from '../../../../../core/auth/permission.service';
+import { ESTADO, MOTIVOS_RECHAZO } from '../../../../../core/models/documento.model';
+import { SolicitudesFacadeService } from '../../../../../core/state/solicitudes-facade.service';
 import { BreadcrumbItem } from '../../../../../shared/components/breadcrumb/breadcrumb.component';
+import { DetailHistoryTabsComponent } from '../../../../../shared/components/detail-history-tabs/detail-history-tabs.component';
+import { HistorialSource, buildCurrentComment, buildHistoryEntries } from '../../../../../shared/components/detail-history-tabs/detail-history-tabs.utils';
+import { ModalComponent } from '../../../../../shared/ui/modal/modal.component';
+import { PaginationComponent } from '../../../../../shared/components/pagination/pagination.component';
+import { RequestApprovalModalsComponent } from '../../../../../shared/components/request-approval-modals/request-approval-modals.component';
 import { SelectionSideNavComponent } from '../../../../../shared/components/selection-side-nav/selection-side-nav.component';
 import { SolicitudeFormCardComponent } from '../../../../../shared/components/solicitude-form-card/solicitude-form-card.component';
+import { SolicitudeHeaderState } from '../../../../../shared/components/solicitude-header/solicitude-header.component';
 import { SolicitudeInfoCardComponent, SolicitudeInfoField } from '../../../../../shared/components/solicitude-info-card/solicitude-info-card.component';
 import { SolicitudePageLayoutComponent } from '../../../../../shared/components/solicitude-page-layout/solicitude-page-layout.component';
+import { TableControlsComponent } from '../../../../../shared/components/table-controls/table-controls.component';
 import { TimelineComponent } from '../../../../../shared/components/timeline/timeline.component';
 import { TimelineItem } from '../../../../../shared/components/timeline/timeline.model';
+import { ActionTrackerComponent, ActionTrackerSummary } from '../../../../../shared/ui/action-tracker/action-tracker.component';
 import { ButtonComponent } from '../../../../../shared/ui/button/button.component';
 import { DateTimePickerComponent } from '../../../../../shared/ui/date-time-picker/date-time-picker.component';
+import { DocumentSummaryCardComponent } from '../../../../../shared/ui/document-summary-card/document-summary-card.component';
+import { FlowStatus } from '../../../../../shared/ui/flow-status-tag/flow-status-tag.component';
 import { IconComponent } from '../../../../../shared/ui/icon/icon.component';
 import { PopoverComponent } from '../../../../../shared/ui/popover/popover.component';
 import { ReadonlyFieldComponent } from '../../../../../shared/ui/readonly-field/readonly-field.component';
+import { SnackbarVariant } from '../../../../../shared/ui/snackbar/snackbar.component';
 import { SummaryCardComponent, SummaryCardField } from '../../../../../shared/ui/summary-card/summary-card.component';
-import { TableComponent } from '../../../../../shared/ui/table/table.component';
-import { DataTableColumn, DataTableRow } from '../../../../../shared/components/data-table/data-table.component';
 import { TextAreaControlComponent } from '../../../../../shared/ui/text-area-control/text-area-control.component';
 import { TextFieldComponent } from '../../../../../shared/ui/text-field/text-field.component';
 import { buildProcessBreadcrumbs } from '../../../../../shared/utils/breadcrumbs.util';
-import { NOMBRE_DOCUMENTO, PROCESS_ID, PROCESS_ROUTE } from '../../config/anuncio-contratacion-futura.rutas';
+import { crearSnapshotFormulario, hayCambiosRespectoAlSnapshot } from '../../../../../shared/utils/form-snapshot.util';
+import { AnunciosApiService } from '../../api/anuncios-api.service';
+import { PROCESS_ID, PROCESS_ROUTE, REQUEST_SEGMENT } from '../../config/anuncio-contratacion-futura.rutas';
+import { AnuncioItemDatos, CODIGO_DOCUMENTO, NOMBRE_DOCUMENTO } from '../../models/anuncio-contratacion-futura.model';
 import {
   COLUMNAS_CONTRATACION,
   CONTRATACIONES_SEGMENTADAS,
@@ -32,66 +52,73 @@ import {
 type FiltrosContratacion = { objeto: string; origen: string; modificacionCmn: string };
 const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionCmn: '' };
 
-/** Un anuncio de contratación futura ya aceptado: la foto del registro al pulsar «Aceptar». */
-interface AnuncioItem {
-  id: string;
-  contratacion: ContratacionSegmentada;
-  alcance: string;
-  plazoEntrega: string;
-  fechaConvocatoria: string;
-}
-
-const COLUMNAS_ITEMS: DataTableColumn[] = [
-  { key: 'codigo', label: 'Código' },
-  { key: 'descripcion', label: 'Descripción' },
-  { key: 'objeto', label: 'Objeto de contratación' },
-  { key: 'tipoProcedimiento', label: 'Tipo de procedimiento' },
-  { key: 'plazoEntrega', label: 'Plazo entrega (días)' },
-  { key: 'fechaConvocatoria', label: 'Fecha aproximada de convocatoria' },
-];
-
 /**
- * Solicitud de anuncio de contratación futura: pantalla inicial (solo frontend, sin backend simulado todavía).
- * Muestra la cabecera de la solicitud nueva, el seguimiento del proceso y la sección vacía a la espera de elegir
- * una opción con el botón «+», que muestra el registro con «Contratación segmentada». La lupa abre el panel
- * «Contrataciones segmentadas 2026» (catálogo simulado con búsqueda, paginación y filtros por objeto, origen y N° de
- * modificación del CMN). «Aceptar» de la sección se habilita al completar el registro (contratación, alcance, plazo de
- * entrega y fecha de convocatoria); todavía no ejecuta ninguna acción.
+ * Solicitud de anuncio de contratación futura (SACF), proceso «Actuaciones preparatorias».
+ *
+ * El creador arma uno o más anuncios con «+»: elige una contratación segmentada con la lupa (panel con búsqueda,
+ * paginación y filtros por objeto, origen y N° de modificación del CMN), completa alcance, plazo de entrega y fecha de
+ * convocatoria, y «Aceptar» lo suma a la grilla. Grabar guarda los anuncios y elabora la solicitud (genera el número);
+ * después el creador la verifica y el aprobador la aprueba, observa o rechaza; al aprobarse, cada anuncio pasa a los
+ * registros. Todo el estado vive en signals y la cabecera se deriva del estado del documento, igual que en la
+ * solicitud de ejemplo de cuentas bancarias.
  */
 @Component({
   selector: 'siaf-anuncio-contratacion-futura',
   standalone: true,
   imports: [
+    ActionTrackerComponent,
     ButtonComponent,
     DateTimePickerComponent,
+    DetailHistoryTabsComponent,
+    DocumentSummaryCardComponent,
     IconComponent,
     PopoverComponent,
     ReadonlyFieldComponent,
+    RequestApprovalModalsComponent,
     SelectionSideNavComponent,
     SolicitudeFormCardComponent,
     SolicitudeInfoCardComponent,
     SolicitudePageLayoutComponent,
     SummaryCardComponent,
-    TableComponent,
+    ModalComponent,
+    PaginationComponent,
+    TableControlsComponent,
     TextAreaControlComponent,
     TextFieldComponent,
     TimelineComponent,
   ],
   template: `
     <div class="min-h-[calc(100vh-56px)] bg-[var(--sys-color-bg-surfaces-surface-lowest)] text-text">
+      <!-- La cabecera (migas, título, estado y botones según rol y estado) la pinta el layout de solicitudes. -->
       <siaf-solicitude-page-layout
         [breadcrumbs]="breadcrumbs"
-        role="creator"
-        state="new"
+        [role]="headerRole()"
+        [state]="headerState()"
+        [loading]="cargando()"
         [heading]="heading"
         secondaryText="Creación"
         [showReturn]="true"
-        [saveDisabled]="true"
-        [verifyDisabled]="true"
+        [showButtonGroup]="mostrarAcciones()"
+        [saveDisabled]="!formValido() || saving()"
+        [verifyDisabled]="!puedeVerificar() || cargando()"
         (returned)="regresar()"
         (canceled)="regresar()"
+        (saved)="modalGrabar.set(true)"
+        (edited)="editar()"
+        (verified)="modalVerificar.set(true)"
+        (deleted)="modalEliminar.set(true)"
+        (approved)="abrirAprobar()"
+        (observed)="abrirObservar()"
+        (rejected)="abrirRechazar()"
       >
-        <siaf-solicitude-info-card [fields]="camposEntidad" [captureOpenDate]="true" />
+        @if (elaborado()) {
+          <section class="grid gap-siaf-md lg:grid-cols-[1fr_360px]">
+            <siaf-solicitude-info-card [fields]="camposEntidad()" />
+            <siaf-document-summary-card [documentNumber]="numeroDocumento()" [status]="estadoDocumento()" />
+          </section>
+        } @else {
+          <siaf-solicitude-info-card [fields]="camposEntidad()" [captureOpenDate]="true" />
+        }
 
         <siaf-timeline
           title="Seguimiento del proceso de Actuaciones preparatorias"
@@ -99,7 +126,8 @@ const COLUMNAS_ITEMS: DataTableColumn[] = [
           itemLabel="etapa"
           itemsLabel="etapas"
           [items]="etapas"
-          [current]="0"
+          [current]="etapaActual()"
+          [fillCurrent]="false"
         />
 
         <siaf-solicitude-form-card [title]="registrando() ? 'Registro de anuncio de contratación futura' : 'Anuncio de contratación futura'">
@@ -107,7 +135,7 @@ const COLUMNAS_ITEMS: DataTableColumn[] = [
             @if (registrando()) {
               <siaf-button variant="outline" size="md" (click)="cancelarRegistro()">Cancelar</siaf-button>
               <siaf-button variant="filled" size="md" [disabled]="!registroCompleto()" (click)="agregarItem()">Aceptar</siaf-button>
-            } @else {
+            } @else if (!soloLectura()) {
               <siaf-button variant="accent" size="md" icon="add" [iconOnly]="true" ariaLabel="Agregar anuncio de contratación futura" (click)="registrando.set(true)" />
             }
           </div>
@@ -225,14 +253,96 @@ const COLUMNAS_ITEMS: DataTableColumn[] = [
               </div>
             }
           } @else if (items().length > 0) {
-            <h3 class="m-0 text-sm font-bold uppercase text-text">Anuncios registrados</h3>
-            <siaf-table [columns]="columnasItems" [rows]="filasItems()" />
+            <siaf-input label="Buscar" [value]="busquedaItems()" (valueChange)="buscarItems($any($event))" />
+
+            <siaf-table-controls
+              selectAllLabel="Seleccionar anuncios"
+              editLabel="Editar"
+              [deleteLabel]="seleccionItems().length > 1 ? 'Borrar items' : 'Borrar item'"
+              [checked]="todosSeleccionados()"
+              [indeterminate]="algunoSeleccionado()"
+              [selectedCount]="seleccionItems().length"
+              [showSelection]="!soloLectura()"
+              [showEditAction]="!soloLectura() && puedeModificar()"
+              [editDisabled]="seleccionItems().length !== 1"
+              [showDeleteAction]="!soloLectura() && puedeModificar()"
+              (edit)="editarSeleccionado()"
+              [page]="paginaItems()"
+              [pageSize]="filasPorPaginaItems()"
+              [totalItems]="itemsFiltrados().length"
+              [totalPages]="totalPaginasItems()"
+              (selectionChange)="seleccionarTodos($event)"
+              (delete)="modalBorrarItem.set(true)"
+              (previous)="paginaItems.set(paginaItems() - 1)"
+              (next)="paginaItems.set(paginaItems() + 1)"
+            />
+
+            <div class="siaf-table-scroll min-w-0">
+              <table class="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr class="h-10 bg-[var(--sys-color-bg-surfaces-surface-high)] text-xs font-bold uppercase text-text">
+                    @if (!soloLectura()) {
+                      <th class="w-12 rounded-l-siaf-sm px-siaf-sm"></th>
+                    }
+                    <th class="px-siaf-md py-siaf-sm" [class.rounded-l-siaf-sm]="soloLectura()">Descripción</th>
+                    <th class="w-[260px] rounded-r-siaf-sm px-siaf-md py-siaf-sm">Fec. aprox. convocatoria</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of itemsPagina(); track item.id) {
+                    <tr class="h-[58px] border-b border-[var(--sys-color-divider-default)] text-[var(--sys-color-text-neutral-medium)]" [class.bg-[var(--sys-color-bg-states-light-selected)]]="!soloLectura() && estaSeleccionado(item.id)">
+                      @if (!soloLectura()) {
+                        <td class="px-siaf-sm">
+                          <input
+                            class="size-4 accent-brand-primary"
+                            type="checkbox"
+                            [checked]="estaSeleccionado(item.id)"
+                            [attr.aria-label]="'Seleccionar anuncio ' + item.contratacionCodigo"
+                            (change)="alternarSeleccion(item.id)"
+                          />
+                        </td>
+                      }
+                      <td class="px-siaf-md py-siaf-sm uppercase">{{ item.descripcion }}</td>
+                      <td class="px-siaf-md py-siaf-sm">{{ fechaCorta(item.fechaConvocatoria) }}</td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="3" class="px-siaf-md py-siaf-lg text-center text-text-muted">No se encontraron resultados.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <siaf-pagination
+              navigation="Activate"
+              position="Bottom"
+              [rowPage]="true"
+              [page]="paginaItems()"
+              [pageSize]="filasPorPaginaItems()"
+              [totalItems]="itemsFiltrados().length"
+              [totalPages]="totalPaginasItems()"
+              [rowsPerPage]="filasPorPaginaItems()"
+              [rowsPerPageOptions]="opcionesFilas"
+              (previous)="paginaItems.set(paginaItems() - 1)"
+              (next)="paginaItems.set(paginaItems() + 1)"
+              (rowsPerPageChange)="cambiarFilasItems($event)"
+            />
           } @else {
             <div class="flex min-h-[49px] items-center rounded-siaf-md bg-[var(--sys-color-bg-surfaces-surface-low)] px-siaf-md py-siaf-sm">
               <p class="m-0 text-sm text-[var(--sys-color-text-neutral-medium)]">Por favor, haga clic en el botón (+) para seleccionar una opción.</p>
             </div>
           }
         </siaf-solicitude-form-card>
+
+        <!-- ── Comentarios del aprobador y trazabilidad ── -->
+        @if (historial().length > 0 || comentarioActual()) {
+          <siaf-detail-history-tabs [comentario]="comentarioActual()" [entries]="historial()" />
+        }
+
+        @if (numeroDocumento()) {
+          <siaf-action-tracker [showSummaryCards]="true" [showTabs]="false" [summaryItems]="trazabilidad()" />
+        }
       </siaf-solicitude-page-layout>
 
       <siaf-selection-side-nav
@@ -291,12 +401,161 @@ const COLUMNAS_ITEMS: DataTableColumn[] = [
           />
         </ng-container>
       </siaf-selection-side-nav>
+
+      <siaf-modal
+        variant="delete-record"
+        title="¿Borrar item(s)?"
+        illustrationSrc="assets/figma/modals/delete-item.svg"
+        confirmLabel="Aceptar"
+        cancelLabel="Cancelar"
+        [open]="modalBorrarItem()"
+        [showIllustration]="true"
+        (confirmed)="confirmarBorrarItem()"
+        (canceled)="modalBorrarItem.set(false)"
+        (closed)="modalBorrarItem.set(false)"
+      />
+
+      <siaf-request-approval-modals
+        [saveOpen]="modalGrabar()"
+        [verifyOpen]="modalVerificar()"
+        [deleteOpen]="modalEliminar()"
+        [approveOpen]="modalAprobar()"
+        [observeOpen]="modalObservar()"
+        [rejectOpen]="modalRechazar()"
+        [saving]="saving()"
+        [reason]="comentario()"
+        [rejectReasonType]="motivoRechazo()"
+        [rejectReasonTypeOptions]="motivosRechazo"
+        [snackbarVariant]="aviso()"
+        [snackbarMessage]="avisoMensaje()"
+        [snackbarOpen]="avisoAbierto()"
+        requestType="creación"
+        [requestNumber]="numeroDocumento()"
+        (saveConfirmed)="onConfirmarGrabar()"
+        (verifyConfirmed)="onConfirmarVerificar()"
+        (deleteConfirmed)="onConfirmarEliminar()"
+        (approveConfirmed)="onConfirmarAprobar()"
+        (observeConfirmed)="onConfirmarObservar()"
+        (rejectConfirmed)="onConfirmarRechazar()"
+        (saveClosed)="modalGrabar.set(false)"
+        (verifyClosed)="modalVerificar.set(false)"
+        (deleteClosed)="modalEliminar.set(false)"
+        (approvalClosed)="cerrarModalesAprobador()"
+        (reasonChange)="comentario.set($event)"
+        (rejectReasonTypeChange)="motivoRechazo.set($event)"
+        (snackbarClosed)="avisoAbierto.set(false)"
+      />
     </div>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AnuncioContratacionFuturaComponent {
+export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly currentUser = inject(CurrentUserService);
+  private readonly permissions = inject(PermissionService);
+  private readonly catalogosApi = inject(CatalogosApiService);
+  private readonly solicitudesApi = inject(SolicitudesApiService);
+  private readonly solicitudesFacade = inject(SolicitudesFacadeService);
+  private readonly anunciosApi = inject(AnunciosApiService);
+
+  private solicitudId: string | null = null;
+  private tiposDocumento: TipoDocumentoResponse[] = [];
+
+  // ── Estado del documento ──────────────────────────────────────────
+  /** Última respuesta del backend: de ella salen el estado, los anuncios, el historial y la trazabilidad. */
+  private readonly solicitud = signal<SolicitudResponse | null>(null);
+  readonly estado = computed(() => (this.solicitud()?.estado ?? 'NUEVO').toUpperCase());
+  readonly editando = signal(false);
+  readonly cargando = signal(false);
+  readonly saving = signal(false);
+
+  readonly headerRole = computed<'creator' | 'approver'>(() => (this.permissions.currentRole() === 'approver' ? 'approver' : 'creator'));
+  /**
+   * ¿La solicitud es del usuario? Solo su creador puede editarla, verificarla o eliminarla (otro usuario con perfil
+   * creador solo la ve). Sin id de usuario en la sesión no se puede saber y se deja pasar: el backend decide.
+   */
+  readonly esAutor = computed(() => {
+    const usuarioId = this.currentUser.user().usuarioId;
+    const creadorId = this.solicitud()?.creador?.id;
+    return !usuarioId || !creadorId || usuarioId === creadorId;
+  });
+  /** El aprobador siempre ve sus acciones; el creador, solo en lo suyo. */
+  readonly mostrarAcciones = computed(() => this.headerRole() === 'approver' || this.esAutor());
+  readonly elaborado = computed(() => this.estado() !== 'NUEVO');
+  readonly soloLectura = computed(() => this.elaborado() && !this.editando());
+  readonly puedeVerificar = computed(() => ['ELABORADO', 'OBSERVADO'].includes(this.estado()));
+  readonly numeroDocumento = computed(() => this.solicitud()?.numero ?? '');
+  /** La solicitud está en la etapa 2 (tras Segmentación, que ya se cumplió); con el anuncio aprobado, esa etapa también. */
+  readonly etapaActual = computed(() => (this.estado() === 'APROBADO' ? 2 : 1));
+
+  readonly headerState = computed<SolicitudeHeaderState>(() => {
+    if (this.editando()) return 'edit';
+    switch (this.estado()) {
+      case 'APROBADO': return 'approved';
+      case 'OBSERVADO': return 'observed';
+      case 'RECHAZADO': return 'rejected';
+      case 'VERIFICADO': return 'verified';
+      case 'ELIMINADO': return 'deleted';
+      case 'ELABORADO': return 'elaborated';
+      default: return 'new';
+    }
+  });
+
+  readonly estadoDocumento = computed<FlowStatus>(() => {
+    const etiquetas: Record<string, FlowStatus> = {
+      APROBADO: ESTADO.APROBADO,
+      OBSERVADO: ESTADO.OBSERVADO,
+      RECHAZADO: ESTADO.RECHAZADO,
+      VERIFICADO: ESTADO.VERIFICADO,
+      ELIMINADO: ESTADO.ELIMINADO,
+    };
+    return etiquetas[this.estado()] ?? ESTADO.ELABORADO;
+  });
+
+  // ── Historial y trazabilidad (del historial de estados) ───────────
+  private readonly fuentesHistorial = computed<HistorialSource[]>(() =>
+    (this.solicitud()?.historialEstados ?? []).map((h) => ({
+      estadoBackend: h.estadoNuevo,
+      fechaISO: h.createdAt,
+      comentario: h.comentario,
+      usuario: h.creador ? `${h.creador.nombres} ${h.creador.apellidoPaterno} ${h.creador.apellidoMaterno}` : '',
+      rol: h.perfil?.cfgPerfil?.rol?.nombre ?? '',
+    })),
+  );
+  readonly historial = computed(() => buildHistoryEntries(this.fuentesHistorial()));
+  readonly comentarioActual = computed(() => buildCurrentComment(this.estado(), this.fuentesHistorial()));
+
+  readonly trazabilidad = computed<ActionTrackerSummary[]>(() => {
+    const historial = this.solicitud()?.historialEstados ?? [];
+    // La última vez que pasó por cada estado (tras observar y subsanar, cuenta la verificación nueva).
+    const ultimo = (estado: string) => [...historial].reverse().find((h) => h.estadoNuevo === estado);
+    const quien = (estado: string, label: string): ActionTrackerSummary => {
+      const h = ultimo(estado);
+      const nombre = h?.creador ? `${h.creador.nombres} ${h.creador.apellidoPaterno} ${h.creador.apellidoMaterno}` : '';
+      return { label, actionBy: nombre.toUpperCase(), date: h ? new Date(h.createdAt).toLocaleString('es-PE') : '' };
+    };
+    const tercero = this.estado() === 'OBSERVADO'
+      ? quien('OBSERVADO', 'Observado por')
+      : this.estado() === 'RECHAZADO' ? quien('RECHAZADO', 'Rechazado por') : quien('APROBADO', 'Aprobado por');
+    return [quien('ELABORADO', 'Elaborado por'), quien('VERIFICADO', 'Verificado por'), tercero];
+  });
+
+  // ── Modales y avisos ──────────────────────────────────────────────
+  readonly modalGrabar = signal(false);
+  readonly modalVerificar = signal(false);
+  readonly modalEliminar = signal(false);
+  readonly modalAprobar = signal(false);
+  readonly modalObservar = signal(false);
+  readonly modalRechazar = signal(false);
+  readonly comentario = signal('');
+  readonly motivoRechazo = signal('');
+  readonly motivosRechazo = [...MOTIVOS_RECHAZO];
+  readonly avisoAbierto = signal(false);
+  readonly aviso = signal<SnackbarVariant>('creation-elaborated');
+  /** Texto propio del aviso (solo con la variante `custom`, como «agregado a la lista»). */
+  readonly avisoMensaje = signal('');
+  private temporizadorAviso: ReturnType<typeof setTimeout> | null = null;
 
   /** Tras pulsar «+»: la sección pasa a «Registro de anuncio…» con la selección de tipo de contratación. */
   readonly registrando = signal(false);
@@ -376,34 +635,122 @@ export class AnuncioContratacionFuturaComponent {
   }
 
   // ── Anuncios registrados (grilla) ──────────────────────────────────
-  readonly items = signal<AnuncioItem[]>([]);
-  readonly columnasItems = COLUMNAS_ITEMS;
-  readonly filasItems = computed<DataTableRow[]>(() =>
-    this.items().map((item) => ({
-      id: item.id,
-      codigo: item.contratacion.codigo,
-      descripcion: item.contratacion.descripcion,
-      objeto: item.contratacion.objeto,
-      tipoProcedimiento: item.contratacion.tipoProcedimiento,
-      plazoEntrega: item.plazoEntrega,
-      fechaConvocatoria: item.fechaConvocatoria.split('-').reverse().join('/'),
-    })),
-  );
+  readonly items = signal<AnuncioItemDatos[]>([]);
+  readonly busquedaItems = signal('');
+  readonly paginaItems = signal(1);
+  readonly filasPorPaginaItems = signal(25);
+  readonly seleccionItems = signal<string[]>([]);
+
+  readonly itemsFiltrados = computed(() => {
+    const texto = this.busquedaItems().trim().toLowerCase();
+    if (!texto) return this.items();
+    return this.items().filter((i) =>
+      [i.contratacionCodigo, i.descripcion, i.objeto, i.alcance, this.fechaCorta(i.fechaConvocatoria)].some((v) => v.toLowerCase().includes(texto)),
+    );
+  });
+  readonly totalPaginasItems = computed(() => Math.max(1, Math.ceil(this.itemsFiltrados().length / this.filasPorPaginaItems())));
+  readonly itemsPagina = computed(() => {
+    const desde = (this.paginaItems() - 1) * this.filasPorPaginaItems();
+    return this.itemsFiltrados().slice(desde, desde + this.filasPorPaginaItems());
+  });
+  readonly todosSeleccionados = computed(() => this.itemsPagina().length > 0 && this.itemsPagina().every((i) => this.estaSeleccionado(i.id)));
+  readonly algunoSeleccionado = computed(() => !this.todosSeleccionados() && this.itemsPagina().some((i) => this.estaSeleccionado(i.id)));
+
+  fechaCorta(iso: string): string {
+    return iso.split('-').reverse().join('/');
+  }
+
+  estaSeleccionado(id: string): boolean {
+    return this.seleccionItems().includes(id);
+  }
+
+  alternarSeleccion(id: string): void {
+    this.seleccionItems.update((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+  }
+
+  /** La casilla de la barra marca o desmarca las filas de la página que se ve. */
+  seleccionarTodos(marcar: boolean): void {
+    const visibles = this.itemsPagina().map((i) => i.id);
+    this.seleccionItems.update((ids) => (marcar ? [...new Set([...ids, ...visibles])] : ids.filter((id) => !visibles.includes(id))));
+  }
+
+  /** Solo el creador y mientras la solicitud admite cambios (nueva, elaborada u observada). */
+  readonly puedeModificar = computed(() => this.headerRole() === 'creator' && this.esAutor() && ['NUEVO', 'ELABORADO', 'OBSERVADO'].includes(this.estado()));
+
+  /** Anuncio de la grilla que se está editando en el registro; sin él, «Aceptar» agrega uno nuevo. */
+  private readonly itemEnEdicion = signal<string | null>(null);
+
+  /** Lápiz: lleva el anuncio marcado al registro para corregirlo (solo con la solicitud en edición). */
+  editarSeleccionado(): void {
+    const [id] = this.seleccionItems();
+    const item = this.items().find((i) => i.id === id);
+    if (!item || this.seleccionItems().length !== 1) return;
+
+    this.itemEnEdicion.set(item.id);
+    this.contratacion.set(CONTRATACIONES_SEGMENTADAS.find((c) => c.codigo === item.contratacionCodigo) ?? null);
+    this.alcance.set(item.alcance);
+    this.plazoEntrega.set(String(item.plazoEntrega));
+    this.fechaConvocatoria.set(item.fechaConvocatoria);
+    this.registrando.set(true);
+  }
+
+  /** Confirmación de la papelera: «¿Borrar item?» antes de quitar los anuncios marcados. */
+  readonly modalBorrarItem = signal(false);
+
+  confirmarBorrarItem(): void {
+    this.modalBorrarItem.set(false);
+    const varios = this.seleccionItems().length > 1;
+    this.quitarSeleccionados();
+    this.avisarLista(varios ? 'Se han borrado de la lista con éxito.' : 'Se ha borrado de la lista con éxito.');
+  }
+
+  /** Quita de la grilla los anuncios marcados (se aplica al grabar). */
+  quitarSeleccionados(): void {
+    const quitar = new Set(this.seleccionItems());
+    this.items.update((lista) => lista.filter((i) => !quitar.has(i.id)));
+    this.seleccionItems.set([]);
+    this.paginaItems.set(Math.min(this.paginaItems(), this.totalPaginasItems()));
+  }
+
+  buscarItems(texto: string): void {
+    this.busquedaItems.set(String(texto ?? ''));
+    this.paginaItems.set(1);
+  }
+
+  cambiarFilasItems(filas: number): void {
+    this.filasPorPaginaItems.set(filas);
+    this.paginaItems.set(1);
+  }
 
   /** «Aceptar»: agrega el registro armado a la grilla y vuelve al estado «sin registrar» para poder agregar otro. */
   agregarItem(): void {
     const c = this.contratacion();
     if (!c || !this.registroCompleto()) return;
 
-    this.items.update((lista) => [
-      ...lista,
-      { id: crypto.randomUUID(), contratacion: c, alcance: this.alcance(), plazoEntrega: this.plazoEntrega(), fechaConvocatoria: this.fechaConvocatoria() },
-    ]);
+    const editado = this.itemEnEdicion();
+    const nuevo: AnuncioItemDatos = {
+      id: editado ?? crypto.randomUUID(),
+      contratacionCodigo: c.codigo,
+      descripcion: c.descripcion,
+      objeto: c.objeto,
+      origen: c.origen,
+      tipoProcedimiento: c.tipoProcedimiento,
+      cantidadAproximada: c.objeto === 'Obra' ? null : c.cantidadAproximada,
+      alcance: this.alcance().trim(),
+      plazoEntrega: Number(this.plazoEntrega()),
+      fechaConvocatoria: this.fechaConvocatoria(),
+    };
+    // Al editar, el anuncio conserva su lugar en la lista; si no, se suma al final.
+    this.items.update((lista) => (editado ? lista.map((i) => (i.id === editado ? nuevo : i)) : [...lista, nuevo]));
+    this.itemEnEdicion.set(null);
+    this.seleccionItems.set([]);
     this.quitarContratacion();
     this.registrando.set(false);
+    this.avisarLista(editado ? 'Se ha actualizado en la lista con éxito.' : 'Se ha agregado a la lista con éxito.');
   }
 
   cancelarRegistro(): void {
+    this.itemEnEdicion.set(null);
     this.quitarContratacion();
     this.registrando.set(false);
   }
@@ -480,15 +827,19 @@ export class AnuncioContratacionFuturaComponent {
   readonly heading = NOMBRE_DOCUMENTO;
   readonly breadcrumbs: BreadcrumbItem[] = buildProcessBreadcrumbs(PROCESS_ID, PROCESS_ROUTE, 'Anuncio de contratación futura');
 
-  readonly camposEntidad: SolicitudeInfoField[] = [
-    { label: 'Fecha', value: '' },
-    { label: 'Ente rector', value: 'MINISTERIO DE ECONOMÍA Y FINANZAS' },
-    { label: 'Entidad/ U.E./ ...', value: 'DEPARTAMENTO ENCARGADO DE LAS CONTRATACIONES' },
-  ];
+  /** «Fecha» vacía en una solicitud nueva: la tarjeta toma la hora en que se abrió. Si ya existe, la de su registro. */
+  readonly camposEntidad = computed<SolicitudeInfoField[]>(() => {
+    const registro = this.solicitud()?.fechaRegistro;
+    return [
+      { label: 'Fecha', value: registro ? formatearFechaHora(new Date(registro)) : '' },
+      { label: 'Ente rector', value: 'MINISTERIO DE ECONOMÍA Y FINANZAS' },
+      { label: 'Entidad/ U.E./ ...', value: 'DEPARTAMENTO ENCARGADO DE LAS CONTRATACIONES' },
+    ];
+  });
 
   readonly etapas: TimelineItem[] = [
+    { label: 'Segmentación', date: '15/09/26', dateInfo: 'Aprobado', description: 'Segmentación aprobada' },
     { label: 'Anuncio de contratación futura' },
-    { label: 'Segmentación' },
     { label: 'Formulación de Requerimiento' },
     { label: 'Estrategia de contratación' },
     { label: 'Interacción con el mercado' },
@@ -497,7 +848,186 @@ export class AnuncioContratacionFuturaComponent {
     { label: 'Elaboración de bases' },
   ];
 
-  regresar(): void {
-    void this.router.navigate(['/panel']);
+  // ── Grabar solo con cambios ───────────────────────────────────────
+  // La foto se toma al pulsar Editar; sin foto (documento nuevo) se asume que hay cambios.
+  private readonly fotoEdicion = signal<string | null>(null);
+  private readonly fotoActual = computed(() => crearSnapshotFormulario({ items: this.items() }));
+  private readonly hayCambios = computed(() => hayCambiosRespectoAlSnapshot(this.fotoEdicion(), this.fotoActual()));
+
+  readonly formValido = computed(() =>
+    !this.soloLectura() && !this.registrando() && this.items().length > 0 && this.hayCambios(),
+  );
+
+  ngOnInit(): void {
+    this.catalogosApi.listarTiposDocumento().subscribe((tipos) => (this.tiposDocumento = tipos));
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) this.cargar(id);
+
+    const estadoNavegacion = history.state as { fromSave?: boolean } | null;
+    if (estadoNavegacion?.fromSave) this.mostrarAviso('creation-elaborated');
   }
+
+  ngOnDestroy(): void {
+    this.cancelarTemporizadorAyuda();
+    this.cancelarTemporizadorAviso();
+  }
+
+  regresar(): void {
+    if (this.editando()) {
+      // Cancelar la edición vuelve a los datos grabados.
+      this.editando.set(false);
+      this.restaurarFormulario(this.solicitud());
+      return;
+    }
+    void this.router.navigate([PROCESS_ROUTE]);
+  }
+
+  editar(): void {
+    this.editando.set(true);
+    this.avisoAbierto.set(false);
+    this.fotoEdicion.set(this.fotoActual());
+  }
+
+  // ── Grabar ────────────────────────────────────────────────────────
+  onConfirmarGrabar(): void {
+    this.modalGrabar.set(false);
+    const items = this.items();
+    const guardarYElaborar = (id: string): Observable<unknown> =>
+      this.anunciosApi.guardarDetalle(id, items).pipe(
+        switchMap(() => this.solicitudesApi.cambiarEstado(id, { estadoNuevo: 'ELABORADO' })),
+      );
+
+    this.saving.set(true);
+
+    if (this.solicitudId) {
+      const id = this.solicitudId;
+      guardarYElaborar(id).subscribe({
+        next: () => { this.editando.set(false); this.mostrarAviso('creation-elaborated'); this.cargar(id); },
+        error: () => this.cargar(id),
+      });
+      return;
+    }
+
+    const tipo = this.tiposDocumento.find((t) => t.codigo === CODIGO_DOCUMENTO);
+    if (!tipo) { this.saving.set(false); return; }
+    this.solicitudesFacade.crearSolicitud({
+      tipoDocumentoId: tipo.id,
+      tipoAccion: 'creacion',
+      fechaRequerimiento: new Date().toISOString(),
+      organoLinea: this.organo(),
+      justificacion: 'Anuncio de contratación futura',
+      cuentas: [],
+    }).pipe(
+      switchMap((creada) => { this.solicitudId = creada.id; return guardarYElaborar(creada.id).pipe(map(() => creada.id)); }),
+    ).subscribe({
+      next: (id) => { this.saving.set(false); void this.router.navigate([PROCESS_ROUTE, REQUEST_SEGMENT, id], { state: { fromSave: true } }); },
+      error: () => {
+        this.saving.set(false);
+        if (this.solicitudId) void this.router.navigate([PROCESS_ROUTE, REQUEST_SEGMENT, this.solicitudId]);
+      },
+    });
+  }
+
+  // ── Acciones de estado ────────────────────────────────────────────
+  onConfirmarVerificar(): void {
+    this.modalVerificar.set(false);
+    this.accion((id) => this.solicitudesApi.cambiarEstado(id, { estadoNuevo: 'VERIFICADO' }), 'creation-verified');
+  }
+
+  onConfirmarEliminar(): void {
+    this.modalEliminar.set(false);
+    this.accion((id) => this.solicitudesApi.cambiarEstado(id, { estadoNuevo: 'ELIMINADO' }), 'creation-deleted');
+  }
+
+  abrirAprobar(): void { this.comentario.set(''); this.modalAprobar.set(true); }
+  abrirObservar(): void { this.comentario.set(''); this.modalObservar.set(true); }
+  abrirRechazar(): void { this.comentario.set(''); this.motivoRechazo.set(''); this.modalRechazar.set(true); }
+
+  cerrarModalesAprobador(): void {
+    this.modalAprobar.set(false);
+    this.modalObservar.set(false);
+    this.modalRechazar.set(false);
+  }
+
+  onConfirmarAprobar(): void {
+    this.modalAprobar.set(false);
+    this.accion((id) => this.solicitudesFacade.aprobar(id), 'creation-approved');
+  }
+
+  onConfirmarObservar(): void {
+    if (!this.comentario().trim()) return;
+    this.modalObservar.set(false);
+    this.accion((id) => this.solicitudesFacade.observar(id, this.comentario()), 'creation-observed');
+  }
+
+  onConfirmarRechazar(): void {
+    if (!this.comentario().trim()) return;
+    this.modalRechazar.set(false);
+    this.accion((id) => this.solicitudesFacade.rechazar(id, this.comentario(), this.motivoRechazo() || undefined), 'creation-rejected');
+  }
+
+  /** Verificar, eliminar, aprobar, observar y rechazar: llamar, avisar y recargar. */
+  private accion(llamada: (id: string) => Observable<unknown>, aviso: SnackbarVariant): void {
+    const id = this.solicitudId;
+    if (!id) return;
+    this.saving.set(true);
+    llamada(id).subscribe({
+      next: () => { this.mostrarAviso(aviso); this.cargar(id); },
+      error: () => this.saving.set(false),
+    });
+  }
+
+  private mostrarAviso(variante: SnackbarVariant): void {
+    this.cancelarTemporizadorAviso();
+    this.aviso.set(variante);
+    this.avisoMensaje.set('');
+    this.avisoAbierto.set(true);
+  }
+
+  /** Confirma que el anuncio entró, se actualizó o se borró de la grilla; se oculta solo a los 4 s para no tapar lo que sigue. */
+  private avisarLista(mensaje: string): void {
+    this.cancelarTemporizadorAviso();
+    this.aviso.set('custom');
+    this.avisoMensaje.set(mensaje);
+    this.avisoAbierto.set(true);
+    this.temporizadorAviso = setTimeout(() => this.avisoAbierto.set(false), 4000);
+  }
+
+  private cancelarTemporizadorAviso(): void {
+    if (this.temporizadorAviso) clearTimeout(this.temporizadorAviso);
+    this.temporizadorAviso = null;
+  }
+
+  private organo(): string {
+    return (this.currentUser.user().unidad ?? this.currentUser.office ?? '').toUpperCase();
+  }
+
+  // ── Carga ─────────────────────────────────────────────────────────
+  private cargar(id: string): void {
+    this.cargando.set(true);
+    this.solicitudesApi.obtenerDetalle(id).subscribe({
+      next: (s) => {
+        this.solicitudId = s.id;
+        this.solicitud.set(s);
+        this.editando.set(false);
+        this.fotoEdicion.set(null);
+        this.restaurarFormulario(s);
+        this.cargando.set(false);
+        this.saving.set(false);
+      },
+      error: () => { this.cargando.set(false); this.saving.set(false); },
+    });
+  }
+
+  private restaurarFormulario(s: SolicitudResponse | null): void {
+    this.items.set(s?.detalleAnuncio?.items ?? []);
+    this.seleccionItems.set([]);
+    this.cancelarRegistro();
+  }
+}
+
+/** `dd/mm/aaaa    hh:mm:ss`, el mismo formato que muestra la tarjeta de datos al abrir una solicitud nueva. */
+function formatearFechaHora(fecha: Date): string {
+  const dos = (n: number) => String(n).padStart(2, '0');
+  return `${dos(fecha.getDate())}/${dos(fecha.getMonth() + 1)}/${fecha.getFullYear()}    ${dos(fecha.getHours())}:${dos(fecha.getMinutes())}:${dos(fecha.getSeconds())}`;
 }

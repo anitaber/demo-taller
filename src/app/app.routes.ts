@@ -39,14 +39,10 @@ export const routes: Routes = [
           import('./layout/virtual-desk/virtual-desk.routes').then((m) => m.VIRTUAL_DESK_ROUTES),
         data: { permissions: ['document.read'] }
       },
-      // ── Proceso de ejemplo: Registro de cuentas bancarias ──
-      {
-        path: '',
-        loadChildren: () =>
-          import('./modules/tesoreria/tesoreria.routes').then((m) => m.TESORERIA_ROUTES),
-        data: { permissions: ['document.read'] }
-      },
-      // ── Gestión de Abastecimiento: anuncio de contratación futura ──
+      // El proceso «Registro de cuentas bancarias» (`modules/tesoreria/`, `TESORERIA_ROUTES`) quedó desconectado: para
+      // volver a verlo hay que montar aquí sus rutas, ponerlo en el árbol de procesos y devolver su tipo de documento
+      // al catálogo del backend simulado.
+      // ── Gestión de Abastecimiento: Actuaciones preparatorias (Documentos y registros y anuncio de contratación futura) ──
       {
         path: '',
         loadChildren: () =>

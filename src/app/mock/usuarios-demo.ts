@@ -34,15 +34,15 @@ const ENTIDAD = {
   unidad: 'Oficina General de Administración',
   unidadSigla: 'OGA',
   unidadId: 'uo-oga',
-  procedimiento: 'Registro de cuentas bancarias',
-  procedimientoCodigo: 'RCB',
+  procedimiento: 'Actuaciones preparatorias',
+  procedimientoCodigo: 'ACP',
   nivelAmbito: 'PLIEGO' as const,
   entidadAmbitoId: 'amb-gn',
   entidadAmbitoCodigo: 'GN',
 };
 
-function perfil(id: string, rolCodigo: 'CREADOR' | 'APROBADOR', rol: string, perfilFuncional: string): PerfilItem {
-  return { id, ...ENTIDAD, rol, rolCodigo, perfilFuncional };
+function perfil(id: string, usuarioId: string, rolCodigo: 'CREADOR' | 'APROBADOR', rol: string, perfilFuncional: string): PerfilItem {
+  return { id, usuarioId, ...ENTIDAD, rol, rolCodigo, perfilFuncional };
 }
 
 export const USUARIOS_DEMO: UsuarioDemo[] = [
@@ -54,7 +54,7 @@ export const USUARIOS_DEMO: UsuarioDemo[] = [
     apellidoPaterno: 'Torres',
     apellidoMaterno: 'Díaz',
     descripcion: 'Creador: registra y verifica solicitudes',
-    perfiles: [perfil('perfil-ana-creador', 'CREADOR', 'Creador', 'Operador de cuentas bancarias')],
+    perfiles: [perfil('perfil-ana-creador', 'usr-ana', 'CREADOR', 'Creador', 'Operador de contrataciones')],
   },
   {
     id: 'usr-luis',
@@ -64,7 +64,7 @@ export const USUARIOS_DEMO: UsuarioDemo[] = [
     apellidoPaterno: 'Ramírez',
     apellidoMaterno: 'Soto',
     descripcion: 'Aprobador: aprueba, observa o rechaza',
-    perfiles: [perfil('perfil-luis-aprobador', 'APROBADOR', 'Aprobador', 'Aprobador de cuentas bancarias')],
+    perfiles: [perfil('perfil-luis-aprobador', 'usr-luis', 'APROBADOR', 'Aprobador', 'Aprobador de contrataciones')],
   },
   {
     id: 'usr-carla',
@@ -75,8 +75,8 @@ export const USUARIOS_DEMO: UsuarioDemo[] = [
     apellidoMaterno: 'Ríos',
     descripcion: 'Dos perfiles: creador y aprobador (cambia de perfil)',
     perfiles: [
-      perfil('perfil-carla-creador', 'CREADOR', 'Creador', 'Operador de cuentas bancarias'),
-      perfil('perfil-carla-aprobador', 'APROBADOR', 'Aprobador', 'Aprobador de cuentas bancarias'),
+      perfil('perfil-carla-creador', 'usr-carla', 'CREADOR', 'Creador', 'Operador de contrataciones'),
+      perfil('perfil-carla-aprobador', 'usr-carla', 'APROBADOR', 'Aprobador', 'Aprobador de contrataciones'),
     ],
   },
 ];

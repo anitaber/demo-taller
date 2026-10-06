@@ -37,22 +37,28 @@ verificación es `123456`.
 ## Recorrido sugerido para la clase
 
 1. **Login** como Ana. El escritorio virtual muestra la bandeja, los contadores y sus notificaciones.
-2. **Procesos → Gestión de tesorería → Registro de cuentas bancarias → Documentos y registros**. La pestaña Documentos
-   es la bandeja; Registros, las cuentas ya aprobadas (con el historial de la solicitud que las creó).
-3. **Crear documento → Solicitud de Registro de Cuenta Bancaria**: llenar el formulario, adjuntar un PDF de sustento
-   y **Grabar**. La solicitud recibe su número (`PCB-SRCB-00013-2026-MEF-OGA`) y queda Elaborada; luego **Verificar**.
-4. **Cerrar sesión** y entrar como Luis: tiene la notificación «Solicitud por aprobar». Abrir la solicitud y
-   **Aprobar** (la cuenta aparece en Registros con el código `CB-0009`), **Observar** o **Rechazar** (piden comentario).
-5. Volver a entrar como Ana: le llega el aviso. Una solicitud observada se corrige y se vuelve a verificar, pero ya no
-   se puede eliminar.
+2. **Procesos → Gestión de Abastecimiento → Actuaciones preparatorias** (Documentos y registros). La pestaña Documentos
+   es la bandeja; Registros, los anuncios ya aprobados (con el historial de la solicitud que los creó). Al empezar está
+   todo vacío.
+3. **Crear documento → Actuaciones preparatorias → Solicitud de anuncio de contratación futura**: con **+** se abre el
+   registro; la lupa elige una contratación segmentada (panel con búsqueda, paginación y filtros), se completan alcance,
+   plazo de entrega y fecha de convocatoria y **Aceptar** la suma a la grilla. Con **Grabar** la solicitud recibe su
+   número (`0001`) y queda Elaborada; luego **Verificar**.
+4. **Cerrar sesión** y entrar como Luis: tiene la notificación «Solicitud por aprobar». Abrir la solicitud (desde el
+   aviso, la bandeja o Documentos y registros) y **Aprobar** (los anuncios aparecen en Registros con los códigos
+   `ACF-0001`, `ACF-0002`…), **Observar** o **Rechazar** (piden comentario).
+5. Volver a entrar como Ana: le llega el aviso. Una solicitud observada se edita y se vuelve a grabar y verificar, pero
+   ya no se puede eliminar.
 6. Entrar como Carla y cambiar de perfil desde el menú del usuario: el avatar pasa de «CR» a «AP» y cambian la bandeja,
    los botones y las notificaciones.
-7. **Consultas y reportes**: elegir el rango de fechas de apertura y consultar. Probar los filtros, la **vista de
-   gráficas** (KPI, barras, dona y línea) y **Exportar** a Excel, CSV o PDF.
-8. **Catálogo de componentes** en `/ui-kit` (enlace «Ver componentes» del login): cada componente con su ficha, sus
+7. **Catálogo de componentes** en `/ui-kit` (enlace «Ver componentes» del login): cada componente con su ficha, sus
    entradas y su ejemplo.
 
 Para empezar de cero: **Reiniciar datos** en el login (o borrar el almacenamiento del sitio).
+
+> El proceso «Registro de cuentas bancarias» (`modules/tesoreria/`, con Documentos y registros, solicitud y consultas)
+> quedó **desconectado**: no está en el menú, ni en «Crear», ni en las rutas. Su código sigue en el repositorio como
+> referencia.
 
 ## Pantallas
 
@@ -61,21 +67,20 @@ Para empezar de cero: **Reiniciar datos** en el login (o borrar el almacenamient
 | `/login` | Inicio de sesión y usuarios de demostración | `siaf-tabs`, `siaf-input`, `siaf-list` |
 | `/login/recuperar-contrasena` | Recuperar contraseña con código | — |
 | `/panel` | Escritorio virtual | `siaf-desk-card` |
-| `/procesos/registro-cuentas-bancarias` | Documentos y registros | `siaf-documents-records-page` |
-| `/procesos/registro-cuentas-bancarias/solicitud` y `/solicitud/:id` | Solicitud de Registro de Cuenta Bancaria | `siaf-solicitude-page-layout` |
-| `/procesos/registro-cuentas-bancarias/consultas` | Consultas y reportes | `siaf-query-report-page` |
+| `/procesos/actuaciones-preparatorias` | Documentos y registros | `siaf-documents-records-page` |
+| `/procesos/actuaciones-preparatorias/anuncio-contratacion-futura` y `/:id` | Solicitud de anuncio de contratación futura | `siaf-solicitude-page-layout`, `siaf-selection-side-nav`, `siaf-timeline` |
 | `/ui-kit` | Catálogo de componentes (sin sesión) | — |
 
 ## Cómo funcionan los datos simulados
 
 - **`src/app/mock/mock-backend.interceptor.ts`** hace de backend: responde las llamadas a `/api/v1` con las mismas
   rutas y respuestas que el backend real del SIAF-RP, y aplica sus reglas (quién puede hacer cada cambio de estado,
-  comentario obligatorio al observar o rechazar, sustento obligatorio para elaborar, número al elaborar, registro al
+  comentario obligatorio al observar o rechazar, al menos un anuncio para elaborar, número al elaborar, registros al
   aprobar, notificaciones para cada rol). Simula 250 ms de latencia. Si una pantalla llama a una ruta que no simula,
   lo avisa en la consola con `[mock] Endpoint no simulado`.
 - **`src/app/mock/mock-db.ts`** guarda los datos en el `localStorage` del navegador (clave `taller-siaf-rp:datos`): lo
-  que graba un usuario lo ve otro al entrar, en el mismo navegador. Trae 12 solicitudes en todos los estados, 8 cuentas
-  registradas y notificaciones. Si cambian la forma de los datos, suban `VERSION` y se regeneran solos.
+  que graba un usuario lo ve otro al entrar, en el mismo navegador. Arranca vacío: sin solicitudes, registros ni
+  notificaciones. Si cambian la forma de los datos, suban `VERSION` y se regeneran solos.
 - **`src/app/mock/usuarios-demo.ts`** define los usuarios y sus perfiles. El token es un JWT sin firma: la app solo lee
   su vencimiento.
 - Las notificaciones en tiempo real (socket) están apagadas: la campana se actualiza al iniciar sesión y al abrirla.
@@ -89,12 +94,12 @@ src/app/
 ├── layout/          armazón: barra superior, menú lateral, menú de procesos, bandeja y escritorio virtual
 ├── mock/            backend simulado, datos iniciales y usuarios de demostración
 ├── modules/
-│   └── tesoreria/cuentas-bancarias/
-│       ├── api/     llamadas del proceso
-│       ├── config/  rutas, columnas y filtros de Documentos y registros
-│       ├── models/  tipos y catálogos (bancos, monedas, tipos de cuenta)
-│       ├── pages/   documents · solicitud · consultas
-│       └── utils/   exportación a Excel, CSV y PDF
+│   ├── abastecimiento/actuaciones-preparatorias/
+│   │   ├── api/     llamadas del proceso
+│   │   ├── config/  rutas, columnas y filtros de Documentos y registros
+│   │   ├── models/  anuncio (documento, ítems y registros) y catálogo de contrataciones segmentadas
+│   │   └── pages/   documents · anuncio-contratacion-futura
+│   └── tesoreria/cuentas-bancarias/   (desconectado: no está en el menú ni en las rutas)
 └── shared/
     ├── ui/          componentes del diseño de Figma (sin dependencias del dominio)
     ├── components/  componentes compuestos y plantillas de pantalla
@@ -103,7 +108,7 @@ src/app/
 
 ## Cómo sumar un proceso
 
-Tomen como modelo `modules/tesoreria/cuentas-bancarias/`:
+Tomen como modelo `modules/abastecimiento/actuaciones-preparatorias/`:
 
 1. **Modelo y API** del proceso en `modules/<área>/<proceso>/`.
 2. **Backend simulado**: sus rutas en `RUTAS` de `mock-backend.interceptor.ts` y sus datos iniciales en `mock-db.ts`.

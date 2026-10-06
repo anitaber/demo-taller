@@ -88,3 +88,78 @@ describe('DocumentsRecordsTableComponent — tooltip de textos truncados', () =>
     expect(tooltipVisible()).toBeNull();
   }));
 });
+
+describe('DocumentsRecordsTableComponent — Registros con cabecera agrupada y columnas fijas', () => {
+  let fixture: ComponentFixture<DocumentsRecordsTableComponent>;
+  const el = (): HTMLElement => fixture.nativeElement;
+
+  const columns: DocumentsRecordsColumn[] = [
+    { key: 'descripcion', label: 'Descripción', visibility: 'visible', group: 'default', widthClass: 'w-[300px]' },
+    { key: 'numero', label: 'Número', visibility: 'visible', group: 'default', headerGroup: 'Documento' },
+    { key: 'documento', label: 'Descripción', visibility: 'visible', group: 'default', headerGroup: 'Documento' },
+    { key: 'publicacion', label: 'Estado de la publicación', visibility: 'visible', group: 'default', sticky: 'right', stickyWidth: 130 },
+    { key: 'ver', label: '', visibility: 'visible', group: 'default', kind: 'document-icon', sticky: 'right', stickyWidth: 56 },
+  ];
+  const rows: DocumentsRecordsRow[] = [
+    { recordId: 'a', descripcion: 'UNO', numero: '0001', documento: 'Solicitud', publicacion: 'Publicado', linkRoute: '/procesos/x/1' },
+    { recordId: 'b', descripcion: 'DOS', numero: '0002', documento: 'Solicitud', publicacion: 'Publicado', linkRoute: '/procesos/x/2' },
+  ];
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [DocumentsRecordsTableComponent],
+      providers: [provideRouter([]), provideHttpClient()],
+    }).compileComponents();
+    fixture = TestBed.createComponent(DocumentsRecordsTableComponent);
+    fixture.componentRef.setInput('activeTab', 'records');
+    fixture.componentRef.setInput('columns', columns);
+    fixture.componentRef.setInput('rows', rows);
+    fixture.componentRef.setInput('recordTrackKey', 'recordId');
+    fixture.componentRef.setInput('selectableRecords', true);
+    fixture.componentRef.setInput('documentRoute', (row: DocumentsRecordsRow) => String(row['linkRoute']));
+    fixture.detectChanges();
+  });
+
+  it('con columnas agrupadas pinta dos filas de cabecera: el grupo arriba y sus columnas abajo', () => {
+    const filas = el().querySelectorAll('thead tr');
+    expect(filas.length).toBe(2);
+
+    const grupo = Array.from(filas[0].querySelectorAll('th')).find((th) => th.textContent?.trim() === 'Documento');
+    expect(grupo?.getAttribute('colspan')).toBe('2');
+    expect(Array.from(filas[1].querySelectorAll('th')).map((th) => th.textContent?.trim())).toEqual(['Número', 'Descripción']);
+  });
+
+  it('en Registros pinta una casilla por fila solo si la config lo pide', () => {
+    expect(el().querySelectorAll('tbody input[type="checkbox"]').length).toBe(2);
+
+    fixture.componentRef.setInput('selectableRecords', false);
+    fixture.detectChanges();
+
+    expect(el().querySelectorAll('tbody input[type="checkbox"]').length).toBe(0);
+  });
+
+  it('las casillas avisan de la fila marcada', () => {
+    let cambio: { selected: boolean } | undefined;
+    fixture.componentInstance.selectionChanged.subscribe((c) => (cambio = c));
+
+    (el().querySelector('tbody input[type="checkbox"]') as HTMLInputElement).click();
+
+    expect(cambio?.selected).toBeTrue();
+  });
+
+  it('las columnas fijas van a la derecha, antes del historial, apiladas con el ancho que declaran', () => {
+    const fijas = Array.from(el().querySelectorAll<HTMLElement>('tbody tr:first-child td.sticky'));
+
+    // publicación (130), ícono del documento (56) y el botón de historial, que mide 56.
+    expect(fijas.length).toBe(3);
+    expect(fijas[0].style.right).toBe('112px');
+    expect(fijas[1].style.right).toBe('56px');
+    expect(fijas[2].querySelector('button')?.getAttribute('aria-label')).toBe('Historial de registro');
+  });
+
+  it('el ícono del documento enlaza a la solicitud de la fila', () => {
+    const enlace = el().querySelector<HTMLAnchorElement>('tbody tr:first-child a[aria-label="Ver documento"]');
+
+    expect(enlace?.getAttribute('href')).toBe('/procesos/x/1');
+  });
+});

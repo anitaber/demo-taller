@@ -6,6 +6,9 @@ export type CurrentUser = {
   /** Nombre legible de la entidad/UE/unidad principal. */
   office: string;
 
+  /** Id del usuario: lo compara con el creador de una solicitud para saber si es suya. */
+  usuarioId?: string | null;
+
   // ── Identificadores ricos (modelo refactor v2) ──
   /** Id (uuid) de la entidad/pliego — para acotar consultas por ámbito propio. */
   entidadId?: string | null;

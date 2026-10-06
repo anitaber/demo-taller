@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
 import { IconComponent } from '../../ui/icon/icon.component';
+import { TooltipDirective } from '../../ui/tooltip/tooltip.directive';
 import { PaginationComponent } from '../pagination/pagination.component';
 
 /**
@@ -38,7 +39,9 @@ import { PaginationComponent } from '../pagination/pagination.component';
  * - **Pendiente · 2.4.3 Orden del foco (A)**: las acciones solo existen con filas elegidas: si una deja la selección
  *   en 0 (p. ej. Eliminar), su botón enfocado desaparece y el foco no pasa a otro control.
  * - **1.4.11 Contraste no textual (AA)**: borde del checkbox en `icon-states-enabled` (8.70:1 / 12.87:1; marcado, en
- *   `icon-states-active`, 8.79:1 / 10.15:1) e íconos de acción en `text-neutral-low` (5.01:1 / 8.86:1).
+ *   `icon-states-active`, 8.79:1 / 10.15:1) e íconos de acción en `icon-states-enabled` (el mismo gris oscuro del
+ *   checkbox; deshabilitado, `icon-states-disabled`). Cada acción muestra su etiqueta (`editLabel`, `deleteLabel`…)
+ *   como tooltip al pasar el puntero o enfocarla.
  * - **2.4.7 Foco visible (AA)**: sin estilo propio: el checkbox y los botones muestran el anillo nativo del navegador;
  *   las flechas, el de `siaf-pagination`.
  * - **2.5.8 Tamaño del objetivo (AA)**: el `<label>` del checkbox y cada acción miden 40 × 40 px.
@@ -46,7 +49,7 @@ import { PaginationComponent } from '../pagination/pagination.component';
 @Component({
   selector: 'siaf-table-controls',
   standalone: true,
-  imports: [IconComponent, PaginationComponent],
+  imports: [IconComponent, PaginationComponent, TooltipDirective],
   template: `
     <div class="flex min-h-10 items-center gap-siaf-md">
       @if (showSelection) {
@@ -65,9 +68,9 @@ import { PaginationComponent } from '../pagination/pagination.component';
 
       @if (selectedCount > 0 && showEditAction) {
         <button
-          class="inline-flex size-10 items-center justify-center rounded-siaf-md text-text-muted transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
+          class="inline-flex size-10 items-center justify-center rounded-siaf-md text-[var(--sys-color-icon-states-enabled)] transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-[var(--sys-color-icon-states-disabled)]"
           type="button"
-          [attr.aria-label]="editLabel"
+          [attr.aria-label]="editLabel" [siafTooltip]="editLabel" tooltipMode="always"
           [disabled]="editDisabled"
           (click)="edit.emit()"
         >
@@ -77,9 +80,9 @@ import { PaginationComponent } from '../pagination/pagination.component';
 
       @if (selectedCount > 0 && showDeleteAction) {
         <button
-          class="inline-flex size-10 items-center justify-center rounded-siaf-md text-text-muted transition hover:bg-surface-muted"
+          class="inline-flex size-10 items-center justify-center rounded-siaf-md text-[var(--sys-color-icon-states-enabled)] transition hover:bg-surface-muted"
           type="button"
-          [attr.aria-label]="deleteLabel"
+          [attr.aria-label]="deleteLabel" [siafTooltip]="deleteLabel" tooltipMode="always"
           (click)="delete.emit()"
         >
           <siaf-icon name="delete" [size]="24" />
@@ -88,9 +91,9 @@ import { PaginationComponent } from '../pagination/pagination.component';
 
       @if (selectedCount > 0 && showExportAction) {
         <button
-          class="inline-flex size-10 items-center justify-center rounded-siaf-md text-text-muted transition hover:bg-surface-muted"
+          class="inline-flex size-10 items-center justify-center rounded-siaf-md text-[var(--sys-color-icon-states-enabled)] transition hover:bg-surface-muted"
           type="button"
-          [attr.aria-label]="exportLabel"
+          [attr.aria-label]="exportLabel" [siafTooltip]="exportLabel" tooltipMode="always"
           (click)="exported.emit()"
         >
           <siaf-icon name="download" [size]="24" />
@@ -98,7 +101,7 @@ import { PaginationComponent } from '../pagination/pagination.component';
       }
 
       @if (selectedCount > 0 && showMenuAction) {
-        <button class="inline-flex size-10 items-center justify-center rounded-siaf-md text-text-muted transition hover:bg-surface-muted" type="button" [attr.aria-label]="menuLabel" (click)="menu.emit()">
+        <button class="inline-flex size-10 items-center justify-center rounded-siaf-md text-[var(--sys-color-icon-states-enabled)] transition hover:bg-surface-muted" type="button" [attr.aria-label]="menuLabel" [siafTooltip]="menuLabel" tooltipMode="always" (click)="menu.emit()">
           <siaf-icon name="more_vert" [size]="24" />
         </button>
       }

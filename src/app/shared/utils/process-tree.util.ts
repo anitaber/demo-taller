@@ -32,14 +32,12 @@ export interface ProcessMenuNode {
 }
 
 /**
- * Árbol de procesos del taller. Todas las hojas son ejemplos de cómo se ve un proceso planificado («Próximamente»).
- * Para sumar un proceso implementado: una hoja con `moduleRoute` (Documentos y registros) y otra para sus consultas,
- * y sus rutas en `app.routes.ts`.
+ * Árbol de procesos del taller. Solo «Actuaciones preparatorias» está implementado (su `moduleRoute` abre Documentos
+ * y registros, y de ahí se llega a la solicitud de anuncio de contratación futura); el resto son ejemplos de cómo se
+ * ve un proceso planificado («Próximamente»). Para sumar un proceso: un nodo con `moduleRoute` (Documentos y
+ * registros) y, si hace falta, otro para sus consultas, y sus rutas en `app.routes.ts`.
  *
- * «Registro de cuentas bancarias» (`modules/tesoreria/cuentas-bancarias/`) sigue implementado y sus rutas siguen
- * activas, pero ya no tiene nodo en este árbol: sus migas de pan (`registro-cuentas-bancarias-documentos` /
- * `-consultas` en `cuentas-bancarias.rutas.ts`) usaban `findProcessPathById` contra este árbol, así que ahora quedan
- * incompletas («Inicio» solo) hasta que se les dé una hoja o se les cambie el processId.
+ * El proceso «Registro de cuentas bancarias» (`modules/tesoreria/`) ya no está en el árbol ni en las rutas.
  */
 export const DEFAULT_PROCESS_TREE: ProcessMenuNode[] = [
   {
@@ -51,7 +49,7 @@ export const DEFAULT_PROCESS_TREE: ProcessMenuNode[] = [
       {
         id: 'actuaciones-preparatorias',
         label: 'Actuaciones preparatorias',
-        comingSoon: true,
+        moduleRoute: '/procesos/actuaciones-preparatorias',
         expanded: true,
         selected: true,
         children: [

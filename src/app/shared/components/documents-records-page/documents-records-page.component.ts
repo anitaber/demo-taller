@@ -327,7 +327,13 @@ type DocumentsRecordsRoleMode = 'creator' | 'approver' | 'readOnly';
                   (next)="onNextPage()"
                 />
               } @else {
-                <siaf-table-controls [showSelection]="false"
+                <siaf-table-controls
+                  selectAllLabel="Seleccionar registros"
+                  [showSelection]="!!effectiveConfig.recordsSelectable"
+                  [checked]="allVisibleRecordsSelected"
+                  [indeterminate]="someVisibleRecordsSelected"
+                  [disabled]="paginatedRows.length === 0"
+                  (selectionChange)="toggleVisibleRecords($event)"
                   [page]="page"
                   [pageSize]="rowsPerPage"
                   [totalItems]="totalItemsPaginador"
@@ -346,6 +352,7 @@ type DocumentsRecordsRoleMode = 'creator' | 'approver' | 'readOnly';
               } @else {
                 <siaf-documents-records-table
                   [activeTab]="activeTab"
+                  [selectableRecords]="!!effectiveConfig.recordsSelectable"
                   [columns]="visibleColumns"
                   [rows]="paginatedRows"
                   [minWidthClass]="activeTab === 'documents' ? effectiveConfig.documentTableMinWidthClass : effectiveConfig.recordTableMinWidthClass"
@@ -425,6 +432,8 @@ export class DocumentsRecordsPageComponent implements OnChanges {
   @Output() documentsQueryChange = new EventEmitter<DocumentsQuery>();
   /** Igual que `documentsQueryChange`, para la pestaña Registros (`serverRecordsQuery`). */
   @Output() recordsQueryChange = new EventEmitter<DocumentsQuery>();
+  /** Con `recordHistoryKind: 'personalizado'`, el botón de historial de un registro emite su fila aquí. */
+  @Output() recordHistoryRequested = new EventEmitter<DocumentsRecordsRow>();
   @Input() loading = false;
 
   // Config efectivo con reglas de rol aplicadas automáticamente
@@ -483,6 +492,7 @@ export class DocumentsRecordsPageComponent implements OnChanges {
   selectedActionTypeFilter = '';
   // Filtros específicos del tab Registros
   selectedRecordFilter1 = '';
+  private recordFilter1DefaultApplied = false;
   selectedRecordFilter2 = '';
   /** Texto aplicado a la búsqueda (el que filtra). Se fija con Enter/lupa. */
   searchTerm = '';
@@ -557,6 +567,12 @@ export class DocumentsRecordsPageComponent implements OnChanges {
     }
 
     const cfg = this.effectiveConfig;
+    // El primer filtro de Registros puede arrancar aplicado (chip «Estado del registro: Activo»); solo la primera vez,
+    // para no volver a ponerlo si el usuario lo quitó.
+    if (!this.recordFilter1DefaultApplied && cfg.recordFilter1Default) {
+      this.selectedRecordFilter1 = cfg.recordFilter1Default;
+      this.recordFilter1DefaultApplied = true;
+    }
     // Las bandejas refrescan por polling: cada re-emisión de config reconstruye
     // las filas. Preservar la selección del usuario casando por identidad
     // estable, o el checkbox se "des-selecciona solo" al llegar el refresh.
@@ -669,6 +685,20 @@ export class DocumentsRecordsPageComponent implements OnChanges {
     return rows.some((row) => row.selected) && !this.allVisibleElaboradoDocumentsSelected;
   }
 
+  /** Casillas de Registros (`recordsSelectable`): «seleccionar todo» actúa sobre la página que se ve. */
+  get allVisibleRecordsSelected(): boolean {
+    const rows = this.paginatedRows;
+    return this.activeTab === 'records' && rows.length > 0 && rows.every((row) => row.selected);
+  }
+
+  get someVisibleRecordsSelected(): boolean {
+    return this.activeTab === 'records' && this.paginatedRows.some((row) => row.selected) && !this.allVisibleRecordsSelected;
+  }
+
+  toggleVisibleRecords(selected: boolean): void {
+    this.paginatedRows.forEach((row) => (row.selected = selected));
+  }
+
   get activeColumnOptions(): DocumentsRecordsColumn[] {
     return this.activeTab === 'documents' ? this.effectiveConfig.documentColumns : this.effectiveConfig.recordColumns;
   }
@@ -678,7 +708,7 @@ export class DocumentsRecordsPageComponent implements OnChanges {
   }
 
   get selectableColumnOptions(): DocumentsRecordsColumn[] {
-    return this.activeColumnOptions.filter((column) => column.visibility !== 'internal');
+    return this.activeColumnOptions.filter((column) => column.visibility !== 'internal' && column.kind !== 'document-icon');
   }
 
   get defaultColumnOptions(): DocumentsRecordsColumn[] {
@@ -1147,6 +1177,12 @@ export class DocumentsRecordsPageComponent implements OnChanges {
 
   openHistory(row: DocumentsRecordsRow): void {
     this.closeToolbarMenus();
+
+    // Historial propio del proceso: la página no abre ningún panel, avisa y el proceso pinta el suyo.
+    if (this.activeTab === 'records' && this.effectiveConfig.recordHistoryKind === 'personalizado') {
+      this.recordHistoryRequested.emit(row);
+      return;
+    }
 
     // Con `recordHistoryKind: 'documento'`, el historial de un registro es el de la solicitud que lo creó (su `linkRoute`).
     if (this.activeTab === 'records' && this.effectiveConfig.recordHistoryKind !== 'documento') {

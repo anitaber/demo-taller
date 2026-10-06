@@ -177,6 +177,7 @@ export class AuthService {
   private hydrateCurrentUser(p: PerfilItem): void {
     this.currentUser.setUser({
       name: p.rol,
+      usuarioId: p.usuarioId ?? null,
       office: buildOfficeLabel(p),
       entidadId: p.entidadId ?? null,
       entidadSiglas: p.entidadSiglas ?? null,

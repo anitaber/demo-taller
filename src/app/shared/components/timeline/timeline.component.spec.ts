@@ -42,6 +42,14 @@ describe('TimelineComponent', () => {
     expect(puntos().every((p) => p.dataset['estado'] === 'done')).toBeTrue();
   });
 
+  it('con fillCurrent en false la barra termina en el último hito cumplido', () => {
+    fixture.componentRef.setInput('fillCurrent', false);
+    fixture.detectChanges();
+
+    expect(relleno().style.width).toBe('25%');
+    expect(puntos()[1].dataset['estado']).toBe('current');
+  });
+
   it('cada punto se enfoca y anuncia posición, nombre, fecha y estado', () => {
     const [primero, , tercero] = puntos();
     expect(primero.getAttribute('tabindex')).toBe('0');

@@ -6,12 +6,14 @@ import type { CambiarPerfilResponse, LoginResponse, PerfilItem } from '../core/a
 import type { SolicitudResponse } from '../core/api/solicitudes-api.service';
 import { APP_CONFIG } from '../core/config/app.config';
 import type { EstadoDocumento } from '../core/models/documento.model';
+import type { AnuncioItemDatos } from '../modules/abastecimiento/actuaciones-preparatorias/models/anuncio-contratacion-futura.model';
 import type { CuentaBancariaDatos } from '../modules/tesoreria/cuentas-bancarias/models/cuenta-bancaria.model';
 import {
   DatosTaller,
   ENTIDAD_CREADORA,
   NotificacionMock,
-  TIPO_DOCUMENTO,
+  TIPOS_DOCUMENTO,
+  TIPO_SACF,
   UNIDAD_CREADORA,
   filaHistorial,
   guardarDatos,
@@ -26,8 +28,9 @@ import { CONTRASENA_DEMO, USUARIOS_DEMO, UsuarioDemo, buscarUsuarioPorPerfil } f
  *
  * Responde las llamadas a `APP_CONFIG.api.baseUrl` como lo haría el backend de SIAF-RP, con los datos de `mock-db.ts`,
  * y deja pasar todo lo demás (assets). Respeta las reglas del flujo de una solicitud: quién puede hacer cada
- * transición, comentario obligatorio al observar o rechazar, sustento obligatorio para elaborar, número al elaborar y
- * registro al aprobar. Para sumar un endpoint: una entrada en `RUTAS` con su manejador.
+ * transición, comentario obligatorio al observar o rechazar, el contenido obligatorio para elaborar (al menos un anuncio
+ * en la SACF; datos y sustento en la SRCB), número al elaborar y registros al aprobar. Para sumar un endpoint: una
+ * entrada en `RUTAS` con su manejador.
  */
 
 interface Sesion {
@@ -132,13 +135,14 @@ const verificarOtp: Manejador = ({ req }) => {
 
 // ─── Catálogos ─────────────────────────────────────────────────────
 
+/** Solo el anuncio de contratación futura se ofrece en «Crear»: el catálogo manda lo que el usuario puede crear. */
 const tiposDocumento: Manejador = () => ok([
   {
-    ...TIPO_DOCUMENTO,
-    modulo: 'tesoreria',
+    ...TIPO_SACF,
+    modulo: 'abastecimiento',
     esActivo: true,
     accionesPermitidas: [{ tipoAccion: 'creacion' }],
-    proceso: { codigo: 'registro-cuentas-bancarias', nombre: 'Registro de cuentas bancarias', modulo: 'tesoreria' },
+    proceso: { codigo: 'actuaciones-preparatorias', nombre: 'Actuaciones preparatorias', modulo: 'abastecimiento' },
   },
 ]);
 
@@ -189,7 +193,7 @@ function notificar(datos: DatosTaller, s: SolicitudResponse, estado: EstadoDocum
     leida: false,
     leidaEn: null,
     createdAt: new Date().toISOString(),
-    documento: { id: s.id, numero: s.numero, catDocumento: TIPO_DOCUMENTO },
+    documento: { id: s.id, numero: s.numero, catDocumento: TIPOS_DOCUMENTO.find((t) => t.codigo === s.catDocumento?.codigo) ?? TIPO_SACF },
     ...destino,
   });
 }
@@ -200,13 +204,22 @@ function buscarSolicitud(datos: DatosTaller, id: string): SolicitudResponse | un
   return datos.solicitudes.find((s) => s.id === id);
 }
 
-function bandeja(ctx: Contexto, estados?: EstadoDocumento[]): Respuesta {
+/** Solo el creador de una solicitud puede editarla, verificarla o eliminarla: otro usuario con perfil creador no. */
+function esAutor(s: SolicitudResponse, sesion: Sesion | null): boolean {
+  return !!sesion && s.creador?.id === sesion.usuario.id;
+}
+
+const SOLO_EL_AUTOR = 'Solo el creador de la solicitud puede modificarla.';
+
+function bandeja(ctx: Contexto, estados?: EstadoDocumento[], soloPropias = false): Respuesta {
   const { datos, sesion, query } = ctx;
   if (!sesion) return error(401, 'Sesión expirada.');
   const tipos = (query.get('tipos') ?? '').split(',').filter(Boolean);
   const busqueda = (query.get('search') ?? '').trim().toLowerCase();
 
   let lista = datos.solicitudes.filter((s) => s.entidadCreadora?.id === sesion.perfil.entidadId && s.estado !== 'NUEVO');
+  // La bandeja del creador trae solo lo que creó él; la del aprobador, lo de toda la entidad.
+  if (soloPropias) lista = lista.filter((s) => esAutor(s, sesion));
   if (estados) lista = lista.filter((s) => estados.includes(s.estado));
   if (tipos.length) lista = lista.filter((s) => tipos.includes(s.catDocumento?.codigo ?? ''));
   if (busqueda) {
@@ -225,7 +238,7 @@ function bandeja(ctx: Contexto, estados?: EstadoDocumento[]): Respuesta {
   return ok(lista);
 }
 
-const bandejaCreador: Manejador = (ctx) => bandeja(ctx);
+const bandejaCreador: Manejador = (ctx) => bandeja(ctx, undefined, true);
 const bandejaAprobador: Manejador = (ctx) => bandeja(ctx, ['VERIFICADO', 'OBSERVADO', 'APROBADO', 'RECHAZADO']);
 
 const detalleSolicitud: Manejador = ({ datos, params }) => {
@@ -236,13 +249,14 @@ const detalleSolicitud: Manejador = ({ datos, params }) => {
 const crearSolicitud: Manejador = ({ req, datos, sesion }) => {
   if (!sesion) return error(401, 'Sesión expirada.');
   if (sesion.perfil.rolCodigo !== 'CREADOR') return error(403, 'Solo un creador puede registrar solicitudes.');
-  const dto = (req.body ?? {}) as { tipoAccion?: string; organoLinea?: string; justificacion?: string };
+  const dto = (req.body ?? {}) as { tipoDocumentoId?: string; tipoAccion?: string; organoLinea?: string; justificacion?: string };
+  const tipo = TIPOS_DOCUMENTO.find((t) => t.id === dto.tipoDocumentoId) ?? TIPO_SACF;
   const ahora = new Date().toISOString();
   const id = nuevoId(datos, 'sol');
   const s: SolicitudResponse = {
     id,
     numero: null,
-    catDocumento: TIPO_DOCUMENTO,
+    catDocumento: tipo,
     tipoAccion: dto.tipoAccion ?? 'creacion',
     estado: 'NUEVO',
     asuntoMotivo: `[${dto.organoLinea ?? ''}] ${dto.justificacion ?? ''}`,
@@ -254,6 +268,7 @@ const crearSolicitud: Manejador = ({ req, datos, sesion }) => {
     updatedAt: ahora,
     itemsCuenta: [],
     detalleCuentaBancaria: null,
+    detalleAnuncio: null,
     sustentos: [],
     historialEstados: [filaHistorial(datos, null, 'NUEVO', ahora, sesion.usuario, rolDe(sesion.perfil))],
   };
@@ -266,6 +281,7 @@ const actualizarSolicitud: Manejador = ({ req, datos, params, sesion }) => {
   const s = buscarSolicitud(datos, params[0]);
   if (!s) return error(404, 'La solicitud no existe.');
   if (sesion?.perfil.rolCodigo !== 'CREADOR') return error(403, 'Solo el creador puede editar la solicitud.');
+  if (!esAutor(s, sesion)) return error(403, SOLO_EL_AUTOR);
   if (!['ELABORADO', 'OBSERVADO'].includes(s.estado)) return error(409, 'Solo se edita una solicitud elaborada u observada.');
   const dto = (req.body ?? {}) as { justificacion?: string; organoLinea?: string };
   s.asuntoMotivo = `[${dto.organoLinea ?? ''}] ${dto.justificacion ?? ''}`;
@@ -274,9 +290,10 @@ const actualizarSolicitud: Manejador = ({ req, datos, params, sesion }) => {
   return ok(s);
 };
 
-const guardarCuentaBancaria: Manejador = ({ req, datos, params }) => {
+const guardarCuentaBancaria: Manejador = ({ req, datos, params, sesion }) => {
   const s = buscarSolicitud(datos, params[0]);
   if (!s) return error(404, 'La solicitud no existe.');
+  if (!esAutor(s, sesion)) return error(403, SOLO_EL_AUTOR);
   if (!['NUEVO', 'ELABORADO', 'OBSERVADO'].includes(s.estado)) return error(409, 'La solicitud ya no admite cambios.');
   const cuenta = req.body as CuentaBancariaDatos;
   if (!/^\d{10,20}$/.test(cuenta?.numeroCuenta ?? '')) return error(400, 'El número de cuenta debe tener entre 10 y 20 dígitos.');
@@ -284,6 +301,25 @@ const guardarCuentaBancaria: Manejador = ({ req, datos, params }) => {
   s.updatedAt = new Date().toISOString();
   guardarDatos(datos);
   return ok({ message: 'Cuenta guardada' });
+};
+
+const guardarAnuncio: Manejador = ({ req, datos, params, sesion }) => {
+  const s = buscarSolicitud(datos, params[0]);
+  if (!s) return error(404, 'La solicitud no existe.');
+  if (!esAutor(s, sesion)) return error(403, SOLO_EL_AUTOR);
+  if (!['NUEVO', 'ELABORADO', 'OBSERVADO'].includes(s.estado)) return error(409, 'La solicitud ya no admite cambios.');
+  const { items } = (req.body ?? {}) as { items?: AnuncioItemDatos[] };
+  if (!Array.isArray(items) || !items.length) return error(400, 'Agregue al menos un anuncio de contratación futura.');
+  for (const item of items) {
+    if (!item.contratacionCodigo) return error(400, 'Elija la contratación segmentada de cada anuncio.');
+    if (!item.alcance?.trim()) return error(400, 'Complete el alcance de cada anuncio.');
+    if (!(Number(item.plazoEntrega) > 0)) return error(400, 'El plazo de entrega debe ser mayor que 0 días.');
+    if (!item.fechaConvocatoria) return error(400, 'Indique la fecha aproximada de convocatoria de cada anuncio.');
+  }
+  s.detalleAnuncio = { documentoId: s.id, items };
+  s.updatedAt = new Date().toISOString();
+  guardarDatos(datos);
+  return ok({ message: 'Anuncios guardados' });
 };
 
 const subirSustento: Manejador = ({ req, datos, params }) => {
@@ -341,6 +377,8 @@ const cambiarEstado: Manejador = ({ req, datos, params, sesion }) => {
   const nuevo = dto.estadoNuevo;
   const rol = sesion.perfil.rolCodigo as 'CREADOR' | 'APROBADOR';
   const permitidos = TRANSICIONES[rol]?.[s.estado] ?? [];
+  // Verificar, elaborar de nuevo o eliminar es del creador de la solicitud; aprobar, observar y rechazar, de cualquier aprobador.
+  if (rol === 'CREADOR' && !esAutor(s, sesion)) return error(403, SOLO_EL_AUTOR);
   if (!nuevo || !permitidos.includes(nuevo)) {
     return error(409, `No se puede pasar de ${s.estado} a ${nuevo ?? '—'} con el perfil ${sesion.perfil.rol}.`);
   }
@@ -349,16 +387,22 @@ const cambiarEstado: Manejador = ({ req, datos, params, sesion }) => {
   if (nuevo === 'ELIMINADO' && (s.historialEstados ?? []).some((h) => h.estadoNuevo === 'OBSERVADO')) {
     return error(409, 'No se puede eliminar una solicitud que fue observada.');
   }
+  const codigoDocumento = s.catDocumento?.codigo ?? TIPO_SACF.codigo;
+  const esAnuncio = codigoDocumento === TIPO_SACF.codigo;
   if (nuevo === 'ELABORADO') {
-    if (!s.detalleCuentaBancaria) return error(400, 'Registre los datos de la cuenta bancaria.');
-    if (!(s.sustentos ?? []).length) return error(400, 'Adjunte el documento de sustento.');
+    if (esAnuncio) {
+      if (!s.detalleAnuncio?.items.length) return error(400, 'Agregue al menos un anuncio de contratación futura.');
+    } else {
+      if (!s.detalleCuentaBancaria) return error(400, 'Registre los datos de la cuenta bancaria.');
+      if (!(s.sustentos ?? []).length) return error(400, 'Adjunte el documento de sustento.');
+    }
   }
 
   const ahora = new Date().toISOString();
   const anterior = s.estado;
   if (nuevo === 'ELABORADO' && !s.numero) {
     datos.correlativoDocumento += 1;
-    s.numero = numeroDocumento(datos.correlativoDocumento, new Date());
+    s.numero = numeroDocumento(codigoDocumento, datos.correlativoDocumento, new Date());
   }
   // Volver a grabar un ELABORADO no deja fila en el historial.
   if (!(anterior === 'ELABORADO' && nuevo === 'ELABORADO')) {
@@ -370,7 +414,24 @@ const cambiarEstado: Manejador = ({ req, datos, params, sesion }) => {
   if (nuevo === 'VERIFICADO') s.fechaEvaluacion = ahora;
   if (nuevo === 'APROBADO') s.fechaAprobacion = ahora;
 
-  // Al aprobar, la cuenta pasa a los registros.
+  // Al aprobar, cada anuncio pasa a los registros.
+  if (nuevo === 'APROBADO' && esAnuncio && s.detalleAnuncio && !datos.anuncios.some((r) => r.documentoId === s.id)) {
+    for (const item of s.detalleAnuncio.items) {
+      datos.correlativoAnuncio += 1;
+      datos.anuncios.push({
+        ...item,
+        id: nuevoId(datos, 'acf'),
+        codigo: `ACF-${String(datos.correlativoAnuncio).padStart(4, '0')}`,
+        estado: 'Activo',
+        entidadSiglas: s.entidadCreadora?.siglas ?? '',
+        documentoId: s.id,
+        numeroDocumento: s.numero ?? '',
+        fechaRegistro: ahora,
+      });
+    }
+  }
+
+  // Al aprobar, la cuenta pasa a los registros (proceso de cuentas bancarias).
   if (nuevo === 'APROBADO' && s.detalleCuentaBancaria && !datos.registros.some((r) => r.documentoId === s.id)) {
     const { documentoId: _documento, ...cuenta } = s.detalleCuentaBancaria;
     datos.correlativoRegistro += 1;
@@ -391,7 +452,10 @@ const cambiarEstado: Manejador = ({ req, datos, params, sesion }) => {
   return ok({ message: 'Estado actualizado', numero: s.numero });
 };
 
-// ─── Proceso de ejemplo ────────────────────────────────────────────
+// ─── Registros de los procesos ─────────────────────────────────────
+
+const registrosAnuncios: Manejador = ({ datos, sesion }) =>
+  ok(datos.anuncios.filter((r) => !sesion || r.entidadSiglas === sesion.perfil.entidadSiglas));
 
 const registrosCuentas: Manejador = ({ datos, sesion }) =>
   ok(datos.registros.filter((r) => !sesion || r.entidadSiglas === sesion.perfil.entidadSiglas));
@@ -417,12 +481,14 @@ const RUTAS: [string, RegExp, Manejador][] = [
   ['GET', /^\/solicitudes\/bandeja-aprobador$/, bandejaAprobador],
   ['POST', /^\/solicitudes$/, crearSolicitud],
   ['PATCH', /^\/solicitudes\/([^/]+)\/estado$/, cambiarEstado],
+  ['POST', /^\/solicitudes\/([^/]+)\/anuncio$/, guardarAnuncio],
   ['POST', /^\/solicitudes\/([^/]+)\/cuenta-bancaria$/, guardarCuentaBancaria],
   ['POST', /^\/solicitudes\/([^/]+)\/sustentos$/, subirSustento],
   ['GET', /^\/solicitudes\/([^/]+)\/sustentos$/, listarSustentos],
   ['DELETE', /^\/solicitudes\/([^/]+)\/sustentos\/([^/]+)$/, eliminarSustento],
   ['GET', /^\/solicitudes\/([^/]+)$/, detalleSolicitud],
   ['PATCH', /^\/solicitudes\/([^/]+)$/, actualizarSolicitud],
+  ['GET', /^\/anuncios-contratacion$/, registrosAnuncios],
   ['GET', /^\/cuentas-bancarias$/, registrosCuentas],
 ];
 

@@ -100,8 +100,8 @@ const ETIQUETA_ESTADO: Record<TimelineItemState, string> = {
                 >
                   <span
                     class="block size-2 rounded-full"
-                    [class.bg-[var(--sys-color-icon-brand-white)]]="item.estado !== 'pending'"
-                    [class.bg-[var(--sys-color-icon-states-enabled)]]="item.estado === 'pending'"
+                    [class.bg-[var(--sys-color-icon-brand-white)]]="item.estado === 'done' || (item.estado === 'current' && llenarEnCurso())"
+                    [class.bg-[var(--sys-color-icon-states-enabled)]]="item.estado === 'pending' || (item.estado === 'current' && !llenarEnCurso())"
                   ></span>
                 </span>
               </li>
@@ -142,6 +142,14 @@ export class TimelineComponent {
     this.lista.set(valor ?? []);
   }
 
+  /**
+   * Si la barra se llena también hasta el hito en curso (por defecto sí). En `false` solo cubre los hitos ya
+   * cumplidos: la barra termina en el último cumplido y el punto del hito en curso se ve como un pendiente.
+   */
+  @Input() set fillCurrent(valor: boolean) {
+    this.llenarEnCurso.set(valor);
+  }
+
   /** Índice del hito en curso (desde 0). -1: sin empezar; `items.length`: terminado. */
   @Input() set current(valor: number) {
     this.indiceActual.set(valor);
@@ -151,6 +159,7 @@ export class TimelineComponent {
 
   readonly lista = signal<TimelineItem[]>([]);
   readonly indiceActual = signal(-1);
+  readonly llenarEnCurso = signal(true);
   readonly detalleAbierto = signal(false);
 
   verDetalle(): void {
@@ -162,7 +171,7 @@ export class TimelineComponent {
   readonly avance = computed(() => {
     const total = this.lista().length;
     if (!total) return 0;
-    return (hitosCumplidos(total, this.indiceActual() + 1) / total) * 100;
+    return (hitosCumplidos(total, this.indiceActual() + (this.llenarEnCurso() ? 1 : 0)) / total) * 100;
   });
 
   readonly hitos = computed(() => {

@@ -3664,6 +3664,13 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "descripcion": null
       },
       {
+        "nombre": "position",
+        "tipo": "'bottom' | 'top'",
+        "porDefecto": "'bottom'",
+        "requerida": false,
+        "descripcion": "Lado del campo donde se abre el calendario (como `siaf-popover`); `top` evita el scroll cuando el campo está al final de la página."
+      },
+      {
         "nombre": "required",
         "tipo": "boolean",
         "porDefecto": "false",
@@ -4786,6 +4793,11 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "descripcion": "Consulta remota de la pestaña Documentos (solo si la config declara `serverQuery`): se emite al confirmar la búsqueda (Enter/lupa), al cambiar de página y al cambiar el tamaño de página. El padre la resuelve contra el backend y devuelve `documentRows` ya filtrados y paginados."
       },
       {
+        "nombre": "recordHistoryRequested",
+        "tipo": "DocumentsRecordsRow",
+        "descripcion": "Con `recordHistoryKind: 'personalizado'`, el botón de historial de un registro emite su fila aquí."
+      },
+      {
         "nombre": "recordsQueryChange",
         "tipo": "DocumentsQuery",
         "descripcion": "Igual que `documentsQueryChange`, para la pestaña Registros (`serverRecordsQuery`)."
@@ -4958,7 +4970,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
     "capa": "ui",
     "importacion": "@siaf/ui/documents-records-table/documents-records-table.component",
     "archivo": "src/app/shared/ui/documents-records-table/documents-records-table.component.ts",
-    "descripcion": "Tabla de las pestañas Documentos / Registros: columnas configurables, celdas por tipo\n(enlace al documento, tag de flujo, tag de registro), checkbox de selección y botón de historial.\n\nEs la tabla interna de `siaf-documents-records-page`; para una grilla nueva compón la grilla\nestándar (`siaf-table-controls` arriba + `siaf-pagination Bottom` abajo) alrededor de ella.",
+    "descripcion": "Tabla de las pestañas Documentos / Registros: columnas configurables, celdas por tipo\n(enlace al documento, tag de flujo, tag de registro), checkbox de selección y botón de historial.\n\nEs la tabla interna de `siaf-documents-records-page`; para una grilla nueva compón la grilla\nestándar (`siaf-table-controls` arriba + `siaf-pagination Bottom` abajo) alrededor de ella.\n\nEn Registros admite, por configuración de columnas: casillas por fila (`selectableRecords`), cabecera de dos filas\npara columnas agrupadas (`headerGroup`), columnas fijas a la derecha antes del historial (`sticky` + `stickyWidth`) y\nuna columna con el ícono que abre el documento (`kind: 'document-icon'`). El historial lleva el tooltip «Historial\nde registro» (o «Historial de documento»).",
     "usaSesion": false,
     "proyectaContenido": false,
     "entradas": [
@@ -5003,6 +5015,13 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "porDefecto": "[]",
         "requerida": false,
         "descripcion": null
+      },
+      {
+        "nombre": "selectableRecords",
+        "tipo": "boolean",
+        "porDefecto": "false",
+        "requerida": false,
+        "descripcion": "Casillas también en Registros (en Documentos siempre están)."
       },
       {
         "nombre": "selectionDisabled",
@@ -5081,6 +5100,12 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         ]
       },
       {
+        "token": "--sys-color-icon-states-enabled",
+        "via": [
+          "var()"
+        ]
+      },
+      {
         "token": "--sys-color-text-neutral-high",
         "via": [
           "text-text"
@@ -5103,6 +5128,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "token": "--sys-gap-base-xs",
         "via": [
           "gap-siaf-xs",
+          "px-siaf-xs",
           "py-siaf-xs"
         ]
       },
@@ -13473,7 +13499,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
     "usar": "- Arriba de toda grilla, siempre: bandeja, pestañas Documentos / Registros, panel lateral de selección y tablas de\n  solicitudes, consultas, Admin y Apertura contable.\n- En edición, con `[showSelection]=\"!isReadOnly\"` y las acciones que correspondan (p. ej. `showEditAction` con\n  `editDisabled` si hay más de una fila elegida); en consulta, con `[showSelection]=\"false\"`.\n- Para una acción extra sobre la selección: proyectarla con `tableAction` (Libros contables proyecta un\n  `siaf-icon-dropdown-menu` «Descargar la selección»).",
     "evitar": "- Armar la barra a mano con un checkbox y `siaf-pagination` en `Top`: esa paginación solo vive dentro de este\n  componente.\n- Para la paginación de abajo: `siaf-pagination` con `position=\"Bottom\"` y `rowPage`.\n- Para acciones que no dependen de la selección (crear, exportar todo): van en la cabecera de la sección con\n  `siaf-button` o `siaf-icon-dropdown-menu`; aquí solo aparecen con filas elegidas.",
     "teclado": "- **Tab**: recorre el checkbox de seleccionar todo, las acciones visibles y las flechas de la paginación.\n- **Espacio**: marca o desmarca el checkbox (nativo) y emite `selectionChange`.\n- **Enter / Espacio**: ejecutan la acción enfocada. Las flechas siguen `siaf-pagination` y las acciones proyectadas,\n  su componente.",
-    "accesibilidad": "- **4.1.2 Nombre, función y valor (A)**: checkbox nativo con `aria-label` (`selectAllLabel`, «Seleccionar filas» por\n  defecto) y estado mixto con `indeterminate`; las acciones son `<button>` con `aria-label` (`editLabel`,\n  `deleteLabel`, `exportLabel` y `menuLabel`, este «Mas opciones» sin tilde) y `editDisabled` usa `disabled`.\n- **Pendiente · 4.1.3 Mensajes de estado (AA)**: el contador de la paginación superior no se anuncia al cambiar de\n  página o filtrar (lo hereda de `siaf-pagination`), y tampoco hay aviso de cuántas filas quedan elegidas.\n- **Pendiente · 2.4.3 Orden del foco (A)**: las acciones solo existen con filas elegidas: si una deja la selección\n  en 0 (p. ej. Eliminar), su botón enfocado desaparece y el foco no pasa a otro control.\n- **1.4.11 Contraste no textual (AA)**: borde del checkbox en `icon-states-enabled` (8.70:1 / 12.87:1; marcado, en\n  `icon-states-active`, 8.79:1 / 10.15:1) e íconos de acción en `text-neutral-low` (5.01:1 / 8.86:1).\n- **2.4.7 Foco visible (AA)**: sin estilo propio: el checkbox y los botones muestran el anillo nativo del navegador;\n  las flechas, el de `siaf-pagination`.\n- **2.5.8 Tamaño del objetivo (AA)**: el `<label>` del checkbox y cada acción miden 40 × 40 px.",
+    "accesibilidad": "- **4.1.2 Nombre, función y valor (A)**: checkbox nativo con `aria-label` (`selectAllLabel`, «Seleccionar filas» por\n  defecto) y estado mixto con `indeterminate`; las acciones son `<button>` con `aria-label` (`editLabel`,\n  `deleteLabel`, `exportLabel` y `menuLabel`, este «Mas opciones» sin tilde) y `editDisabled` usa `disabled`.\n- **Pendiente · 4.1.3 Mensajes de estado (AA)**: el contador de la paginación superior no se anuncia al cambiar de\n  página o filtrar (lo hereda de `siaf-pagination`), y tampoco hay aviso de cuántas filas quedan elegidas.\n- **Pendiente · 2.4.3 Orden del foco (A)**: las acciones solo existen con filas elegidas: si una deja la selección\n  en 0 (p. ej. Eliminar), su botón enfocado desaparece y el foco no pasa a otro control.\n- **1.4.11 Contraste no textual (AA)**: borde del checkbox en `icon-states-enabled` (8.70:1 / 12.87:1; marcado, en\n  `icon-states-active`, 8.79:1 / 10.15:1) e íconos de acción en `icon-states-enabled` (el mismo gris oscuro del\n  checkbox; deshabilitado, `icon-states-disabled`). Cada acción muestra su etiqueta (`editLabel`, `deleteLabel`…)\n  como tooltip al pasar el puntero o enfocarla.\n- **2.4.7 Foco visible (AA)**: sin estilo propio: el checkbox y los botones muestran el anillo nativo del navegador;\n  las flechas, el de `siaf-pagination`.\n- **2.5.8 Tamaño del objetivo (AA)**: el `<label>` del checkbox y cada acción miden 40 × 40 px.",
     "figma": [],
     "aria": {
       "roles": [],
@@ -13489,15 +13515,15 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         ]
       },
       {
-        "token": "--sys-color-icon-states-enabled",
+        "token": "--sys-color-icon-states-disabled",
         "via": [
           "var()"
         ]
       },
       {
-        "token": "--sys-color-text-neutral-low",
+        "token": "--sys-color-icon-states-enabled",
         "via": [
-          "text-text-muted"
+          "var()"
         ]
       },
       {
@@ -13520,6 +13546,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
       }
     ],
     "usa": [
+      "[siafTooltip]",
       "siaf-icon",
       "siaf-pagination"
     ],
@@ -14060,6 +14087,13 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "descripcion": null
       },
       {
+        "nombre": "fillCurrent",
+        "tipo": "boolean",
+        "porDefecto": null,
+        "requerida": false,
+        "descripcion": "Si la barra se llena también hasta el hito en curso (por defecto sí). En `false` solo cubre los hitos ya cumplidos: la barra termina en el último cumplido y el punto del hito en curso se ve como un pendiente."
+      },
+      {
         "nombre": "itemLabel",
         "tipo": "string",
         "porDefecto": "'hito'",
@@ -14456,6 +14490,12 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
     },
     "tokens": [
       {
+        "token": "--sys-color-bg-brand-primary",
+        "via": [
+          "text-brand-primary"
+        ]
+      },
+      {
         "token": "--sys-color-bg-states-light-hover",
         "via": [
           "var()"
@@ -14616,7 +14656,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
     "capa": "layout",
     "importacion": "@siaf/layout/tray-menu/tray-menu.component",
     "archivo": "src/app/layout/tray-menu/tray-menu.component.ts",
-    "descripcion": "Menú de la Bandeja de Documentos: lista Recibidos, Enviados, Borradores, Notificaciones y Papelera\ncon su contador, y emite en `selected` la sección elegida.\n\nLos contadores son un `computed` que depende del rol: `SolicitudesStateService` para las bandejas\n(el aprobador no tiene Borradores ni Papelera) y `NotificationsStateService.unreadCount()` —la misma\nfuente por socket que la campana del navbar— para Notificaciones. Se muestran a dos dígitos, tope '99+'.",
+    "descripcion": "Menú de la Bandeja de Documentos: lista Recibidos, Enviados, Borradores, Notificaciones y Papelera\ncon su contador, y emite en `selected` la sección elegida.\n\nLos contadores son un `computed` que depende del rol: `SolicitudesStateService` para las bandejas\n(el aprobador no tiene Borradores ni Papelera) y `NotificationsStateService.unreadCount()` —la misma\nfuente por socket que la campana del navbar— para Notificaciones. Se muestran a dos dígitos, tope '99+'; una\nsección sin nada no muestra el tag.",
     "usaSesion": true,
     "proyectaContenido": false,
     "entradas": [
@@ -15594,7 +15634,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
     "capa": "layout",
     "importacion": "@siaf/layout/virtual-desk/virtual-desk.component",
     "archivo": "src/app/layout/virtual-desk/virtual-desk.component.ts",
-    "descripcion": "Escritorio virtual: la home autenticada, con las tarjetas de resumen (Bandeja, Procesos, Recibidos,\nEnviados, Borradores, Notificaciones) y el aviso/modal de cambio de contraseña obligatorio.\nLas tarjetas son `siaf-desk-card` en sus tres variantes; solo Procesos es interactiva.\n\nLos contadores se calculan sobre `SolicitudesStateService` según el rol, salvo Notificaciones, que lee\n`NotificationsStateService.unreadCount()` — la misma fuente por socket que la campana del navbar, tras\nquitar una consulta REST duplicada. Ojo: su definición de \"Enviados\" incluye los ya procesados y no\ncoincide con la de `solicitudes-state` (solo VERIFICADO); es una inconsistencia conocida y anotada.",
+    "descripcion": "Escritorio virtual: la home autenticada, con las tarjetas de resumen (Bandeja, Procesos, Recibidos,\nEnviados, Borradores, Notificaciones) y el aviso/modal de cambio de contraseña obligatorio.\nLas tarjetas son `siaf-desk-card` en sus tres variantes. Pulsar Procesos abre el menú de procesos; Bandeja de\nDocumentos, Recibidos, Enviados, Borradores y Notificaciones abren su sección de la bandeja (Bandeja abre Recibidos;\nBorradores no abre nada para el aprobador, que no los tiene) y Crear documento abre el panel de creación si el rol\npuede crear. Consulta y Reportes todavía no tiene destino.\n\nLos contadores se calculan sobre `SolicitudesStateService` según el rol, salvo Notificaciones, que lee\n`NotificationsStateService.unreadCount()` — la misma fuente por socket que la campana del navbar, tras\nquitar una consulta REST duplicada. Ojo: su definición de \"Enviados\" incluye los ya procesados y no\ncoincide con la de `solicitudes-state` (solo VERIFICADO); es una inconsistencia conocida y anotada.",
     "usaSesion": true,
     "proyectaContenido": false,
     "entradas": [],

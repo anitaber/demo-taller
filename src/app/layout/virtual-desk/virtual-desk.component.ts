@@ -19,12 +19,17 @@ type DeskCard = {
   value: number;
   icon: string;
   tone: DeskCardTone;
+  /** Si al pulsarla abre su sección de la bandeja. */
+  interactive: boolean;
 };
 
 /**
  * Escritorio virtual: la home autenticada, con las tarjetas de resumen (Bandeja, Procesos, Recibidos,
  * Enviados, Borradores, Notificaciones) y el aviso/modal de cambio de contraseña obligatorio.
- * Las tarjetas son `siaf-desk-card` en sus tres variantes; solo Procesos es interactiva.
+ * Las tarjetas son `siaf-desk-card` en sus tres variantes. Pulsar Procesos abre el menú de procesos; Bandeja de
+ * Documentos, Recibidos, Enviados, Borradores y Notificaciones abren su sección de la bandeja (Bandeja abre Recibidos;
+ * Borradores no abre nada para el aprobador, que no los tiene) y Crear documento abre el panel de creación si el rol
+ * puede crear. Consulta y Reportes todavía no tiene destino.
  *
  * Los contadores se calculan sobre `SolicitudesStateService` según el rol, salvo Notificaciones, que lee
  * `NotificationsStateService.unreadCount()` — la misma fuente por socket que la campana del navbar, tras
@@ -100,7 +105,15 @@ type DeskCard = {
           }
 
           <div class="grid gap-siaf-md xl:grid-cols-2">
-            <siaf-desk-card variant="featured" title="Bandeja de Documentos" icon="inbox" tone="accent" [value]="totalBandeja()" />
+            <siaf-desk-card
+              variant="featured"
+              title="Bandeja de Documentos"
+              icon="inbox"
+              tone="accent"
+              [value]="totalBandeja()"
+              [interactive]="true"
+              (activated)="openTray('Recibidos')"
+            />
             <siaf-desk-card
               variant="featured"
               title="Procesos"
@@ -114,13 +127,28 @@ type DeskCard = {
           <div class="mt-siaf-md grid gap-siaf-md xl:grid-cols-2">
             <div class="grid gap-siaf-md sm:grid-cols-2">
               @for (card of smallCards(); track card.title) {
-                <siaf-desk-card variant="counter" [title]="card.title" [icon]="card.icon" [tone]="card.tone" [value]="card.value" />
+                <siaf-desk-card
+                  variant="counter"
+                  [title]="card.title"
+                  [icon]="card.icon"
+                  [tone]="card.tone"
+                  [value]="card.value"
+                  [interactive]="card.interactive"
+                  (activated)="openTray(card.title)"
+                />
               }
             </div>
 
             <div class="grid gap-siaf-md">
               @for (card of wideCards; track card.title) {
-                <siaf-desk-card variant="shortcut" [title]="card.title" [icon]="card.icon" [tone]="card.tone" />
+                <siaf-desk-card
+                  variant="shortcut"
+                  [title]="card.title"
+                  [icon]="card.icon"
+                  [tone]="card.tone"
+                  [interactive]="card.title === 'Crear documento' && puedeCrear()"
+                  (activated)="openCreateDocument()"
+                />
               }
             </div>
           </div>
@@ -174,17 +202,23 @@ export class VirtualDeskComponent implements OnInit {
     return solicitudes.filter(s => ESTADOS_RESPUESTA_APROBADOR.includes(s.estado)).length;
   });
 
+  /** El aprobador no tiene Borradores (su bandeja solo trae Recibidos y Enviados), así que esa tarjeta no abre nada. */
+  private readonly tieneBorradores = computed(() => this.permissionService.currentRole() !== 'approver');
+
   readonly smallCards = computed<DeskCard[]>(() => [
-    { title: 'Recibidos', value: this.recibidosCount(), icon: 'description', tone: 'success' },
-    { title: 'Enviados', value: this.enviadosCount(), icon: 'send', tone: 'accent' },
-    { title: 'Borradores', value: this.borradoresCount(), icon: 'edit_note', tone: 'warning' },
-    { title: 'Notificaciones', value: this.notificationsState.unreadCount(), icon: 'notifications', tone: 'neutral' },
+    { title: 'Recibidos', value: this.recibidosCount(), icon: 'description', tone: 'success', interactive: true },
+    { title: 'Enviados', value: this.enviadosCount(), icon: 'send', tone: 'accent', interactive: true },
+    { title: 'Borradores', value: this.borradoresCount(), icon: 'edit_note', tone: 'warning', interactive: this.tieneBorradores() },
+    { title: 'Notificaciones', value: this.notificationsState.unreadCount(), icon: 'notifications', tone: 'neutral', interactive: true },
   ]);
 
-  readonly wideCards: Omit<DeskCard, 'value'>[] = [
+  readonly wideCards: Omit<DeskCard, 'value' | 'interactive'>[] = [
     { title: 'Consulta y Reportes', icon: 'content_paste_search', tone: 'success' },
     { title: 'Crear documento', icon: 'add', tone: 'accent' },
   ];
+
+  /** Crear documento solo si el rol puede crear (igual que el botón «Crear» del armazón). */
+  readonly puedeCrear = computed(() => this.permissionService.can('document.create'));
 
   ngOnInit(): void {
     const role = this.permissionService.currentRole();
@@ -197,6 +231,14 @@ export class VirtualDeskComponent implements OnInit {
 
   openProcessMenu(): void {
     this.shellNavigation.openProcessMenu();
+  }
+
+  openTray(section: string): void {
+    this.shellNavigation.openTray(section);
+  }
+
+  openCreateDocument(): void {
+    this.shellNavigation.openCreateDocument();
   }
 
   asString(v: string | number | string[]): string {

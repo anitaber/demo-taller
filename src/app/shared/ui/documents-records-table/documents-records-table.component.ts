@@ -1,5 +1,5 @@
-import { NgClass } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { NgClass, NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { NotificationsStateService } from '../../../core/realtime/notifications-state.service';
@@ -20,6 +20,11 @@ export type DocumentsRecordsSelectionChange = {
  *
  * Es la tabla interna de `siaf-documents-records-page`; para una grilla nueva compón la grilla
  * estándar (`siaf-table-controls` arriba + `siaf-pagination Bottom` abajo) alrededor de ella.
+ *
+ * En Registros admite, por configuración de columnas: casillas por fila (`selectableRecords`), cabecera de dos filas
+ * para columnas agrupadas (`headerGroup`), columnas fijas a la derecha antes del historial (`sticky` + `stickyWidth`) y
+ * una columna con el ícono que abre el documento (`kind: 'document-icon'`). El historial lleva el tooltip «Historial
+ * de registro» (o «Historial de documento»).
  *
  * @usar
  * - En las pestañas Documentos / Registros de `siaf-documents-records-page` (plan de cuentas, asiento de ajuste,
@@ -63,56 +68,64 @@ export type DocumentsRecordsSelectionChange = {
 @Component({
   selector: 'siaf-documents-records-table',
   standalone: true,
-  imports: [FlowStatusTagComponent, IconComponent, NgClass, RecordStatusTagComponent, RouterLink, TooltipDirective],
+  imports: [FlowStatusTagComponent, IconComponent, NgClass, NgTemplateOutlet, RecordStatusTagComponent, RouterLink, TooltipDirective],
   template: `
     <div class="siaf-table-scroll min-w-0">
       <table class="w-full border-collapse text-left text-sm" [ngClass]="minWidthClass">
         <thead>
+          <!-- Con columnas agrupadas (headerGroup) hay dos filas de cabecera: el grupo arriba y sus columnas abajo. -->
           <tr class="bg-surface-high text-[10px] font-bold uppercase text-text">
-            @if (activeTab === 'documents') {
-              <th class="w-10 rounded-l-siaf-sm px-siaf-sm py-siaf-sm"></th>
+            @if (conCasillas) {
+              <th class="w-10 rounded-l-siaf-sm px-siaf-sm py-siaf-sm" [attr.rowspan]="conGrupos ? 2 : null"></th>
             }
-            @for (column of columns; track column.key) {
+            @for (celda of cabeceras; track $index) {
               <!-- MFD RF-01: al superponer el mouse se muestra el texto completo de la columna -->
-              <th class="truncate px-siaf-md py-siaf-sm" siafTooltip [ngClass]="[column.widthClass || 'w-[180px]', column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left']">{{ column.label }}</th>
+              @if (celda.grupo) {
+                <th class="truncate border-b border-l border-[var(--sys-color-divider-strong)] px-siaf-md py-siaf-sm text-center" siafTooltip [attr.colspan]="celda.columnas.length">{{ celda.grupo }}</th>
+              } @else {
+                <th class="truncate px-siaf-md py-siaf-sm" siafTooltip [attr.rowspan]="conGrupos ? 2 : null" [ngClass]="[celda.columnas[0].widthClass || 'w-[180px]', celda.columnas[0].align === 'right' ? 'text-right' : celda.columnas[0].align === 'center' ? 'text-center' : 'text-left']">{{ celda.columnas[0].label }}</th>
+              }
             }
-            <th class="sticky right-0 w-14 rounded-r-siaf-sm border-l border-[var(--sys-color-divider-strong)] bg-surface-high px-siaf-sm py-siaf-sm"></th>
+            @for (column of columnasFijas; track column.key; let i = $index) {
+              <th class="sticky truncate border-l border-[var(--sys-color-divider-strong)] bg-surface-high px-siaf-xs py-siaf-sm text-center" siafTooltip [attr.rowspan]="conGrupos ? 2 : null" [style.right.px]="desplazamientoFija(i)" [style.width.px]="column.stickyWidth" [style.min-width.px]="column.stickyWidth">{{ column.label }}</th>
+            }
+            <th class="sticky right-0 w-14 rounded-r-siaf-sm border-l border-[var(--sys-color-divider-strong)] bg-surface-high px-siaf-sm py-siaf-sm" [attr.rowspan]="conGrupos ? 2 : null"></th>
           </tr>
+          @if (conGrupos) {
+            <tr class="bg-surface-high text-[10px] font-bold uppercase text-text">
+              @for (column of columnasAgrupadas; track column.key) {
+                <th class="truncate border-l border-[var(--sys-color-divider-strong)] px-siaf-md py-siaf-sm" siafTooltip [ngClass]="[column.widthClass || 'w-[180px]', column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left']">{{ column.label }}</th>
+              }
+            </tr>
+          }
         </thead>
         <tbody>
           @for (row of rows; track rowTrackValue(row, $index)) {
             <tr class="border-b border-[var(--sys-color-divider-default)] bg-surface hover:bg-[var(--sys-color-bg-states-light-hover)]" [class.h-12]="activeTab === 'records'">
-              @if (activeTab === 'documents') {
+              @if (conCasillas) {
                 <td class="h-[58px] px-siaf-sm py-siaf-xs">
                   <input
                     class="size-4 disabled:cursor-not-allowed"
                     type="checkbox"
                     [checked]="row.selected"
                     [disabled]="selectionDisabled(row)"
+                    [attr.aria-label]="activeTab === 'records' ? 'Seleccionar registro' : null"
                     (change)="onSelectionChange(row, $event)"
                   />
                 </td>
               }
-              @for (column of columns; track column.key) {
-                <td class="px-siaf-md py-siaf-sm" [ngClass]="[column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left', column.kind === 'document-link' ? 'max-w-[440px]' : '']">
-                  @if (column.kind === 'document-link') {
-                    <span class="flex min-w-0 items-center gap-siaf-xs">
-                      <a class="min-w-0 flex-1 truncate text-sm leading-normal text-text hover:text-brand-primary" siafTooltip [routerLink]="documentRoute(row)" (click)="onDocumentClick(row)">{{ row[column.key] }}</a>
-                      @if (row['isNew']) {
-                        <span class="inline-flex shrink-0 items-center rounded-full bg-brand-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Nuevo</span>
-                      }
-                    </span>
-                  } @else if (column.kind === 'flow-status') {
-                    <siaf-flow-status-tag [status]="flowStatus(row[column.key])" size="small" />
-                  } @else if (column.kind === 'record-status') {
-                    <siaf-record-status-tag [status]="recordStatus(row[column.key])" [size]="activeTab === 'records' ? 'small' : 'standard'" />
-                  } @else {
-                    <span class="block truncate" siafTooltip>{{ row[column.key] }}</span>
-                  }
+              @for (column of columnasNormales; track column.key) {
+                <td class="px-siaf-md py-siaf-sm" [class.border-l]="column.headerGroup" [class.border-[var(--sys-color-divider-default)]]="column.headerGroup" [ngClass]="[column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left', column.kind === 'document-link' ? 'max-w-[440px]' : '']">
+                  <ng-container *ngTemplateOutlet="celda; context: { column: column, row: row }" />
+                </td>
+              }
+              @for (column of columnasFijas; track column.key; let i = $index) {
+                <td class="sticky border-l border-[var(--sys-color-divider-strong)] bg-surface py-siaf-sm" [class.px-siaf-md]="column.kind !== 'document-icon'" [class.px-siaf-xs]="column.kind === 'document-icon'" [style.right.px]="desplazamientoFija(i)" [style.width.px]="column.stickyWidth" [style.min-width.px]="column.stickyWidth" [class.text-center]="column.kind === 'document-icon'">
+                  <ng-container *ngTemplateOutlet="celda; context: { column: column, row: row }" />
                 </td>
               }
               <td class="sticky right-0 border-l border-[var(--sys-color-divider-strong)] bg-surface px-siaf-sm py-siaf-xs">
-                <button class="inline-flex size-8 items-center justify-center rounded-siaf-md transition hover:bg-surface-muted active:bg-[var(--sys-color-bg-states-dark-pressed)]" type="button" [attr.aria-label]="activeTab === 'records' ? 'Ver historial del registro' : 'Historial de documento'" [title]="activeTab === 'records' ? 'Ver historial del registro' : 'Historial de documento'" (click)="historyOpened.emit(row)">
+                <button class="inline-flex size-8 items-center justify-center rounded-siaf-md transition hover:bg-surface-muted active:bg-[var(--sys-color-bg-states-dark-pressed)]" type="button" [attr.aria-label]="textoHistorial" [siafTooltip]="textoHistorial" tooltipMode="always" (click)="historyOpened.emit(row)">
                   <siaf-icon name="history" [size]="20" />
                 </button>
               </td>
@@ -121,14 +134,76 @@ export type DocumentsRecordsSelectionChange = {
         </tbody>
       </table>
     </div>
+
+    <ng-template #celda let-column="column" let-row="row">
+      @if (column.kind === 'document-link') {
+        <span class="flex min-w-0 items-center gap-siaf-xs">
+          <a class="min-w-0 flex-1 truncate text-sm leading-normal text-text hover:text-brand-primary" siafTooltip [routerLink]="documentRoute(row)" (click)="onDocumentClick(row)">{{ row[column.key] }}</a>
+          @if (row['isNew']) {
+            <span class="inline-flex shrink-0 items-center rounded-full bg-brand-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Nuevo</span>
+          }
+        </span>
+      } @else if (column.kind === 'document-icon') {
+        <a class="inline-flex size-8 items-center justify-center rounded-siaf-md text-[var(--sys-color-icon-states-enabled)] transition hover:bg-surface-muted" [routerLink]="documentRoute(row)" aria-label="Ver documento" siafTooltip="Ver documento" tooltipMode="always" (click)="onDocumentClick(row)">
+          <siaf-icon name="description" [size]="24" />
+        </a>
+      } @else if (column.kind === 'flow-status') {
+        <siaf-flow-status-tag [status]="flowStatus(row[column.key])" size="small" />
+      } @else if (column.kind === 'record-status') {
+        <siaf-record-status-tag [status]="recordStatus(row[column.key])" [size]="activeTab === 'records' ? 'small' : 'standard'" />
+      } @else {
+        <span class="block truncate" siafTooltip>{{ row[column.key] }}</span>
+      }
+    </ng-template>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class DocumentsRecordsTableComponent {
+export class DocumentsRecordsTableComponent implements OnChanges {
   private readonly notificationsState = inject(NotificationsStateService);
 
   @Input() activeTab: DocumentsRecordsTab = 'documents';
   @Input() columns: DocumentsRecordsColumn[] = [];
+  /** Casillas también en Registros (en Documentos siempre están). */
+  @Input() selectableRecords = false;
+
+  /** Columnas que se desplazan, sin las fijas a la derecha. */
+  columnasNormales: DocumentsRecordsColumn[] = [];
+  /** Columnas fijas a la derecha (`sticky`), antes de la de historial. */
+  columnasFijas: DocumentsRecordsColumn[] = [];
+  /** Primera fila de cabecera: un grupo con sus columnas o una columna suelta. */
+  cabeceras: { grupo?: string; columnas: DocumentsRecordsColumn[] }[] = [];
+  /** Columnas con grupo, en el orden de la segunda fila de cabecera. */
+  columnasAgrupadas: DocumentsRecordsColumn[] = [];
+  conGrupos = false;
+
+  /** Ancho del botón de historial (`w-14`): las columnas fijas se apilan a su izquierda. */
+  private static readonly ANCHO_HISTORIAL = 56;
+
+  ngOnChanges(): void {
+    this.columnasNormales = this.columns.filter((c) => c.sticky !== 'right');
+    this.columnasFijas = this.columns.filter((c) => c.sticky === 'right');
+    this.columnasAgrupadas = this.columnasNormales.filter((c) => c.headerGroup);
+    this.conGrupos = this.columnasAgrupadas.length > 0;
+    this.cabeceras = [];
+    for (const columna of this.columnasNormales) {
+      const anterior = this.cabeceras[this.cabeceras.length - 1];
+      if (columna.headerGroup && anterior?.grupo === columna.headerGroup) anterior.columnas.push(columna);
+      else this.cabeceras.push({ grupo: columna.headerGroup, columnas: [columna] });
+    }
+  }
+
+  get conCasillas(): boolean {
+    return this.activeTab === 'documents' || this.selectableRecords;
+  }
+
+  get textoHistorial(): string {
+    return this.activeTab === 'records' ? 'Historial de registro' : 'Historial de documento';
+  }
+
+  /** Distancia al borde derecho de la columna fija `indice`: el historial y las fijas que van después de ella. */
+  desplazamientoFija(indice: number): number {
+    return this.columnasFijas.slice(indice + 1).reduce((total, c) => total + (c.stickyWidth ?? 0), DocumentsRecordsTableComponent.ANCHO_HISTORIAL);
+  }
   @Input() rows: DocumentsRecordsRow[] = [];
   @Input() minWidthClass = '';
   @Input() recordTrackKey = '';

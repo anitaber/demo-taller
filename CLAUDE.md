@@ -22,9 +22,13 @@ usuarios de demostración, el recorrido de la clase y cómo sumar un proceso.
   patrón y manejador) con las reglas del flujo de la solicitud; `mock-db.ts` guarda los datos en `localStorage`
   (clave `taller-siaf-rp:datos`, con `VERSION`: al cambiar la forma de los datos, subirla); `usuarios-demo.ts`, los
   usuarios (contraseña común `Taller2026*`). Su spec documenta las reglas: si se cambia una, actualizarlo.
-- `src/app/modules/tesoreria/cuentas-bancarias/`: **proceso de ejemplo** «Registro de cuentas bancarias» (documento
-  SRCB). Es el modelo para un proceso nuevo: `api/`, `config/`, `models/`, `pages/{documents,solicitud,consultas}` y
-  `utils/`.
+- `src/app/modules/abastecimiento/actuaciones-preparatorias/`: **proceso implementado** «Actuaciones preparatorias»
+  (documento SACF «Solicitud de anuncio de contratación futura»). Es el modelo para un proceso nuevo: `api/`,
+  `config/`, `models/` y `pages/{documents,anuncio-contratacion-futura}`. Cada anuncio se arma con `+` y la lupa
+  (`siaf-selection-side-nav` con filtros) y se acumula en una grilla.
+- `src/app/modules/tesoreria/cuentas-bancarias/`: proceso «Registro de cuentas bancarias» (documento SRCB),
+  **desconectado**: no está en el árbol, en «Crear» ni en `app.routes.ts`. Se conserva como referencia (con consultas y
+  exportación); el simulador aún atiende sus rutas, pero ya no trae datos.
 - `src/app/core/`: API (`core/api`, mismo contrato que el backend real), sesión, permisos por rol
   (`ROLE_PERMISSIONS`: creador y aprobador), interceptores, estado de solicitudes y notificaciones. El socket de
   notificaciones está apagado (`notifications-socket.service.ts` no hace nada).

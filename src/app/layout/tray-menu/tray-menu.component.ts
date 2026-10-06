@@ -19,7 +19,8 @@ type TrayItem = {
  *
  * Los contadores son un `computed` que depende del rol: `SolicitudesStateService` para las bandejas
  * (el aprobador no tiene Borradores ni Papelera) y `NotificationsStateService.unreadCount()` —la misma
- * fuente por socket que la campana del navbar— para Notificaciones. Se muestran a dos dígitos, tope '99+'.
+ * fuente por socket que la campana del navbar— para Notificaciones. Se muestran a dos dígitos, tope '99+'; una
+ * sección sin nada no muestra el tag.
  *
  * @usar
  * - Como panel de la Bandeja en `siaf-app-shell`: se abre desde Bandeja del rail o del menú móvil, y la sección elegida
@@ -84,7 +85,9 @@ type TrayItem = {
             >
               {{ item.label }}
             </span>
-            <siaf-badge class="shrink-0" [label]="item.count" [minWidth]="32" />
+            @if (item.count) {
+              <siaf-badge class="shrink-0" [label]="item.count" [minWidth]="32" />
+            }
           </button>
         }
       </nav>
@@ -100,7 +103,9 @@ export class TrayMenuComponent {
   @Input() selectedItem = 'Borradores';
   @Output() selected = new EventEmitter<string>();
 
+  /** Contador a dos dígitos con tope «99+»; vacío cuando no hay nada, y entonces no se pinta el tag. */
   private fmt(n: number): string {
+    if (n <= 0) return '';
     return n > 99 ? '99+' : String(n).padStart(2, '0');
   }
 

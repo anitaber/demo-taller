@@ -12,6 +12,8 @@ import { APP_CONFIG } from '../config/app.config';
  */
 export interface PerfilItem {
   id: string;
+  /** Id del usuario dueño del perfil (un usuario puede tener varios perfiles). */
+  usuarioId?: string | null;
 
   // ── Contexto institucional ──
   entidad: string | null;
