@@ -5102,6 +5102,12 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         ]
       },
       {
+        "token": "--sys-color-bg-states-light-selected",
+        "via": [
+          "var()"
+        ]
+      },
+      {
         "token": "--sys-color-bg-surfaces-surface",
         "via": [
           "bg-surface",

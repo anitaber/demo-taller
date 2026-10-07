@@ -101,9 +101,9 @@ export type DocumentsRecordsSelectionChange = {
         </thead>
         <tbody>
           @for (row of rows; track rowTrackValue(row, $index)) {
-            <tr class="border-b border-[var(--sys-color-divider-default)] bg-surface hover:bg-[var(--sys-color-bg-states-light-hover)]" [class.h-12]="activeTab === 'records'">
+            <tr class="border-b border-[var(--sys-color-divider-default)] bg-surface hover:bg-[var(--sys-color-bg-states-light-hover)]" [class.fila-sel]="row.selected" [class.h-12]="activeTab === 'records'">
               @if (conCasillas) {
-                <td class="sombra-izq sticky left-0 z-[1] h-[58px] bg-surface px-siaf-sm py-siaf-xs">
+                <td class="sombra-izq sticky left-0 z-[1] h-[58px] bg-surface px-siaf-sm py-siaf-xs" [class.fila-sel]="row.selected">
                   <input
                     class="size-4 disabled:cursor-not-allowed"
                     type="checkbox"
@@ -120,11 +120,11 @@ export type DocumentsRecordsSelectionChange = {
                 </td>
               }
               @for (column of columnasFijas; track column.key; let i = $index) {
-                <td class="sticky border-l border-[var(--sys-color-divider-strong)] bg-surface py-siaf-sm" [class.sombra-fija]="i === 0" [class.px-siaf-md]="column.kind !== 'document-icon'" [class.px-siaf-xs]="column.kind === 'document-icon'" [style.right.px]="desplazamientoFija(i)" [style.width.px]="column.stickyWidth" [style.min-width.px]="column.stickyWidth" [class.text-center]="column.kind === 'document-icon'">
+                <td class="sticky border-l border-[var(--sys-color-divider-strong)] bg-surface py-siaf-sm" [class.fila-sel]="row.selected" [class.sombra-fija]="i === 0" [class.px-siaf-md]="column.kind !== 'document-icon'" [class.px-siaf-xs]="column.kind === 'document-icon'" [style.right.px]="desplazamientoFija(i)" [style.width.px]="column.stickyWidth" [style.min-width.px]="column.stickyWidth" [class.text-center]="column.kind === 'document-icon'">
                   <ng-container *ngTemplateOutlet="celda; context: { column: column, row: row }" />
                 </td>
               }
-              <td class="sticky right-0 border-l border-[var(--sys-color-divider-strong)] bg-surface px-siaf-sm py-siaf-xs">
+              <td class="sticky right-0 border-l border-[var(--sys-color-divider-strong)] bg-surface px-siaf-sm py-siaf-xs" [class.fila-sel]="row.selected">
                 <button class="inline-flex size-8 items-center justify-center rounded-siaf-md transition hover:bg-surface-muted active:bg-[var(--sys-color-bg-states-dark-pressed)]" type="button" [attr.aria-label]="textoHistorial" [siafTooltip]="textoHistorial" tooltipMode="always" (click)="historyOpened.emit(row)">
                   <siaf-icon name="history" [size]="20" />
                 </button>
@@ -183,6 +183,23 @@ export type DocumentsRecordsSelectionChange = {
       background-image:
         linear-gradient(to left, color-mix(in srgb, var(--sys-color-divider-default) 40%, transparent), transparent 10px),
         linear-gradient(var(--sys-color-bg-surfaces-surface-high), var(--sys-color-bg-surfaces-surface-high));
+    }
+    /* Fila marcada: el color de «seleccionado» en toda la fila; las celdas fijas son opacas, así que lo llevan como capa encima. */
+    tr.fila-sel {
+      background-color: var(--sys-color-bg-states-light-selected);
+    }
+    td.fila-sel {
+      background-image: linear-gradient(var(--sys-color-bg-states-light-selected), var(--sys-color-bg-states-light-selected));
+    }
+    td.sombra-fija.fila-sel {
+      background-image:
+        linear-gradient(to right, color-mix(in srgb, var(--sys-color-divider-default) 40%, transparent), transparent 10px),
+        linear-gradient(var(--sys-color-bg-states-light-selected), var(--sys-color-bg-states-light-selected));
+    }
+    td.sombra-izq.fila-sel {
+      background-image:
+        linear-gradient(to left, color-mix(in srgb, var(--sys-color-divider-default) 40%, transparent), transparent 10px),
+        linear-gradient(var(--sys-color-bg-states-light-selected), var(--sys-color-bg-states-light-selected));
     }
     th.sombra-fija {
       background-image:
