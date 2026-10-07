@@ -21,7 +21,7 @@ import { UsuarioDemo } from './usuarios-demo';
 
 const CLAVE = 'taller-siaf-rp:datos';
 /** Subirla al cambiar la forma de los datos: los guardados con otra versión se descartan. */
-const VERSION = 4;
+const VERSION = 5;
 
 export interface NotificacionMock extends NotificacionResponse {
   /** Destinatario: un usuario puntual o, si no hay, todos los perfiles con este rol. */
@@ -48,7 +48,7 @@ export const TIPO_SACF = { id: 'td-sacf', codigo: CODIGO_SACF, nombre: NOMBRE_SA
 export const TIPOS_DOCUMENTO = [TIPO_SRCB, TIPO_SACF];
 
 export const ENTIDAD_CREADORA = { id: 'ent-mef', codMef: '0001', siglas: 'MEF', nombre: 'Ministerio de Economía y Finanzas' };
-export const UNIDAD_CREADORA = { id: 'uo-oga', sigla: 'OGA', nombre: 'Oficina General de Administración' };
+export const UNIDAD_CREADORA = { id: 'uo-dec', sigla: 'DEC', nombre: 'Departamento Encargado de las Contrataciones' };
 
 /** Reasigna al creador de la solicitud las filas de historial hechas con el rol creador (elaborar, verificar, eliminar). */
 function atribuirAlCreador(s: SolicitudResponse): SolicitudResponse {
@@ -60,6 +60,29 @@ function atribuirAlCreador(s: SolicitudResponse): SolicitudResponse {
       : h,
   );
   return { ...s, historialEstados };
+}
+
+/**
+ * Versión 4 → 5: los números de la solicitud de anuncio quedaban con huecos si se eliminaba una (la primera podía ser
+ * 0002 sin que existiera la 0001). Se vuelven a numerar desde 0001, en orden de creación, solo las que siguen vigentes
+ * (las eliminadas conservan el suyo); el aviso, el registro y las notificaciones de cada una se actualizan con el nuevo.
+ */
+function renumerarSolicitudesDeAnuncio(datos: DatosTaller): DatosTaller {
+  const vigentes = datos.solicitudes
+    .filter((s) => s.catDocumento?.codigo === CODIGO_SACF && s.numero && s.estado !== 'ELIMINADO')
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)) || String(a.numero).localeCompare(String(b.numero)));
+  const nuevoNumero = new Map(vigentes.map((s, i) => [s.id, String(i + 1).padStart(4, '0')]));
+
+  const solicitudes = datos.solicitudes.map((s) => (nuevoNumero.has(s.id) ? { ...s, numero: nuevoNumero.get(s.id)! } : s));
+  const anuncios = datos.anuncios.map((r) => (nuevoNumero.has(r.documentoId) ? { ...r, numeroDocumento: nuevoNumero.get(r.documentoId)! } : r));
+  const numeroAnterior = new Map(vigentes.map((s) => [s.id, s.numero as string]));
+  const notificaciones = datos.notificaciones.map((n) => {
+    const id = n.documento?.id;
+    const nuevo = id ? nuevoNumero.get(id) : undefined;
+    const anterior = id ? numeroAnterior.get(id) : undefined;
+    return nuevo && anterior && typeof n.mensaje === 'string' ? { ...n, mensaje: n.mensaje.split(anterior).join(nuevo) } : n;
+  });
+  return { ...datos, solicitudes, anuncios, notificaciones, correlativoDocumento: Math.max(vigentes.length, 0), version: VERSION };
 }
 
 /** Número largo de la solicitud de anuncio (versión 2 de los datos): `PAB-SACF-00001-2026-MEF-OGA` pasa a `0001`. */
@@ -76,7 +99,10 @@ export function leerDatos(): DatosTaller {
       }
       if (datos.version === 3) {
         // Versión 3 → 4: lo hecho con perfil creador es del creador de la solicitud (antes otro creador podía tocarla).
-        datos = { ...datos, solicitudes: datos.solicitudes.map(atribuirAlCreador), version: VERSION };
+        datos = { ...datos, solicitudes: datos.solicitudes.map(atribuirAlCreador), version: 4 };
+      }
+      if (datos.version === 4) {
+        datos = renumerarSolicitudesDeAnuncio(datos);
         guardarDatos(datos);
       }
       if (datos.version === VERSION) return datos;

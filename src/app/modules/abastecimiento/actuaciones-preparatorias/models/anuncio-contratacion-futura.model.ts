@@ -40,4 +40,6 @@ export interface AnuncioRegistro extends AnuncioItemDatos {
   numeroDocumento: string;
   /** Fecha de aprobación (ISO). */
   fechaRegistro: string;
+  /** Estado de la publicación; sin dato, «Publicado» (un anuncio aprobado queda publicado hasta que se despublica). */
+  publicacion?: 'Publicado' | 'Despublicado';
 }

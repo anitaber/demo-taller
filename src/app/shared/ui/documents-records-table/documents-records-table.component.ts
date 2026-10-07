@@ -76,7 +76,7 @@ export type DocumentsRecordsSelectionChange = {
           <!-- Con columnas agrupadas (headerGroup) hay dos filas de cabecera: el grupo arriba y sus columnas abajo. -->
           <tr class="bg-surface-high text-[10px] font-bold uppercase text-text">
             @if (conCasillas) {
-              <th class="w-10 rounded-l-siaf-sm px-siaf-sm py-siaf-sm" [attr.rowspan]="conGrupos ? 2 : null"></th>
+              <th class="th-fija sombra-izq sticky left-0 z-[1] w-10 rounded-l-siaf-sm px-siaf-sm py-siaf-sm" [attr.rowspan]="conGrupos ? 2 : null"></th>
             }
             @for (celda of cabeceras; track $index) {
               <!-- MFD RF-01: al superponer el mouse se muestra el texto completo de la columna -->
@@ -87,7 +87,7 @@ export type DocumentsRecordsSelectionChange = {
               }
             }
             @for (column of columnasFijas; track column.key; let i = $index) {
-              <th class="sticky truncate border-l border-[var(--sys-color-divider-strong)] bg-surface-high px-siaf-xs py-siaf-sm text-center" siafTooltip [attr.rowspan]="conGrupos ? 2 : null" [style.right.px]="desplazamientoFija(i)" [style.width.px]="column.stickyWidth" [style.min-width.px]="column.stickyWidth">{{ column.label }}</th>
+              <th class="th-fija sticky truncate border-l border-[var(--sys-color-divider-strong)] px-siaf-xs py-siaf-sm text-center" [class.sombra-fija]="i === 0" siafTooltip [attr.rowspan]="conGrupos ? 2 : null" [style.right.px]="desplazamientoFija(i)" [style.width.px]="column.stickyWidth" [style.min-width.px]="column.stickyWidth">{{ column.label }}</th>
             }
             <th class="sticky right-0 w-14 rounded-r-siaf-sm border-l border-[var(--sys-color-divider-strong)] bg-surface-high px-siaf-sm py-siaf-sm" [attr.rowspan]="conGrupos ? 2 : null"></th>
           </tr>
@@ -103,7 +103,7 @@ export type DocumentsRecordsSelectionChange = {
           @for (row of rows; track rowTrackValue(row, $index)) {
             <tr class="border-b border-[var(--sys-color-divider-default)] bg-surface hover:bg-[var(--sys-color-bg-states-light-hover)]" [class.h-12]="activeTab === 'records'">
               @if (conCasillas) {
-                <td class="h-[58px] px-siaf-sm py-siaf-xs">
+                <td class="sombra-izq sticky left-0 z-[1] h-[58px] bg-surface px-siaf-sm py-siaf-xs">
                   <input
                     class="size-4 disabled:cursor-not-allowed"
                     type="checkbox"
@@ -120,7 +120,7 @@ export type DocumentsRecordsSelectionChange = {
                 </td>
               }
               @for (column of columnasFijas; track column.key; let i = $index) {
-                <td class="sticky border-l border-[var(--sys-color-divider-strong)] bg-surface py-siaf-sm" [class.px-siaf-md]="column.kind !== 'document-icon'" [class.px-siaf-xs]="column.kind === 'document-icon'" [style.right.px]="desplazamientoFija(i)" [style.width.px]="column.stickyWidth" [style.min-width.px]="column.stickyWidth" [class.text-center]="column.kind === 'document-icon'">
+                <td class="sticky border-l border-[var(--sys-color-divider-strong)] bg-surface py-siaf-sm" [class.sombra-fija]="i === 0" [class.px-siaf-md]="column.kind !== 'document-icon'" [class.px-siaf-xs]="column.kind === 'document-icon'" [style.right.px]="desplazamientoFija(i)" [style.width.px]="column.stickyWidth" [style.min-width.px]="column.stickyWidth" [class.text-center]="column.kind === 'document-icon'">
                   <ng-container *ngTemplateOutlet="celda; context: { column: column, row: row }" />
                 </td>
               }
@@ -144,9 +144,15 @@ export type DocumentsRecordsSelectionChange = {
           }
         </span>
       } @else if (column.kind === 'document-icon') {
-        <a class="inline-flex size-8 items-center justify-center rounded-siaf-md text-[var(--sys-color-icon-states-enabled)] transition hover:bg-surface-muted" [routerLink]="documentRoute(row)" aria-label="Ver documento" siafTooltip="Ver documento" tooltipMode="always" (click)="onDocumentClick(row)">
-          <siaf-icon name="description" [size]="24" />
-        </a>
+        @if (documentIconEmits) {
+          <button class="inline-flex size-8 items-center justify-center rounded-siaf-md text-[var(--sys-color-icon-states-enabled)] transition hover:bg-surface-muted" type="button" aria-label="Ver documento" siafTooltip="Ver documento" tooltipMode="always" (click)="documentOpened.emit(row)">
+            <siaf-icon name="description" [size]="24" />
+          </button>
+        } @else {
+          <a class="inline-flex size-8 items-center justify-center rounded-siaf-md text-[var(--sys-color-icon-states-enabled)] transition hover:bg-surface-muted" [routerLink]="documentRoute(row)" aria-label="Ver documento" siafTooltip="Ver documento" tooltipMode="always" (click)="onDocumentClick(row)">
+            <siaf-icon name="description" [size]="24" />
+          </a>
+        }
       } @else if (column.kind === 'flow-status') {
         <siaf-flow-status-tag [status]="flowStatus(row[column.key])" size="small" />
       } @else if (column.kind === 'record-status') {
@@ -156,6 +162,34 @@ export type DocumentsRecordsSelectionChange = {
       }
     </ng-template>
   `,
+  // Sombra suave en el borde izquierdo del bloque de columnas fijas a la derecha: se nota que es fijo y que la tabla se
+  // desplaza por detrás. Va como degradado de fondo para que funcione igual en la cabecera (que recorta lo que sobresale).
+  styles: [`
+    /* La cabecera de las columnas fijas no puede ser translúcida: el contenido que se desplaza por detrás se vería. Va un fondo
+       sólido con el tono de la cabecera encima. */
+    .th-fija {
+      background-color: var(--sys-color-bg-surfaces-surface);
+      background-image: linear-gradient(var(--sys-color-bg-surfaces-surface-high), var(--sys-color-bg-surfaces-surface-high));
+    }
+    /* Sombra tenue en el borde izquierdo del bloque de columnas fijas: se nota que es fijo y que la tabla pasa por detrás. */
+    td.sombra-fija {
+      background-image: linear-gradient(to right, color-mix(in srgb, var(--sys-color-divider-default) 40%, transparent), transparent 10px);
+    }
+    /* La columna de casillas queda fija a la izquierda, con su sombra tenue en el borde derecho. */
+    td.sombra-izq {
+      background-image: linear-gradient(to left, color-mix(in srgb, var(--sys-color-divider-default) 40%, transparent), transparent 10px);
+    }
+    th.sombra-izq {
+      background-image:
+        linear-gradient(to left, color-mix(in srgb, var(--sys-color-divider-default) 40%, transparent), transparent 10px),
+        linear-gradient(var(--sys-color-bg-surfaces-surface-high), var(--sys-color-bg-surfaces-surface-high));
+    }
+    th.sombra-fija {
+      background-image:
+        linear-gradient(to right, color-mix(in srgb, var(--sys-color-divider-default) 40%, transparent), transparent 10px),
+        linear-gradient(var(--sys-color-bg-surfaces-surface-high), var(--sys-color-bg-surfaces-surface-high));
+    }
+  `],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DocumentsRecordsTableComponent implements OnChanges {
@@ -212,6 +246,9 @@ export class DocumentsRecordsTableComponent implements OnChanges {
 
   @Output() selectionChanged = new EventEmitter<DocumentsRecordsSelectionChange>();
   @Output() historyOpened = new EventEmitter<DocumentsRecordsRow>();
+  /** Con `documentIconEmits`, el ícono de archivo emite la fila en vez de navegar a la solicitud. */
+  @Input() documentIconEmits = false;
+  @Output() documentOpened = new EventEmitter<DocumentsRecordsRow>();
 
   rowTrackValue(row: DocumentsRecordsRow, index: number): string | number {
     const key = this.activeTab === 'documents' ? 'number' : this.recordTrackKey;

@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 
 import { CustomFilterApplyEvent, CustomFilterComponent, FilterRow } from '../../shared/components/custom-filter/custom-filter.component';
 import { FilterPillComponent } from '../../shared/components/filter-pill/filter-pill.component';
+import { DocumentHistoryPanelComponent, DocumentHistorySummary } from '../../shared/components/document-history-panel/document-history-panel.component';
 import { FlowStatusTagComponent } from '../../shared/ui/flow-status-tag/flow-status-tag.component';
 import { IconComponent } from '../../shared/ui/icon/icon.component';
 import { IconDropdownMenuComponent, IconDropdownMenuItem } from '../../shared/ui/icon-dropdown-menu/icon-dropdown-menu.component';
@@ -21,6 +22,8 @@ const RUTA_SOLICITUD_POR_DOCUMENTO: Record<string, string> = {
 };
 
 type TrayDocumentRow = {
+  /** Id de la solicitud: para pedir su historial. */
+  id: string;
   /** Ruta de la solicitud (con su id), para abrirla desde la bandeja. */
   route: string;
   document: string;
@@ -94,7 +97,7 @@ type AppliedCustomFilter = {
 @Component({
   selector: 'siaf-tray-documents-view',
   standalone: true,
-  imports: [CustomFilterComponent, FilterPillComponent, FlowStatusTagComponent, IconComponent, IconDropdownMenuComponent, PaginationComponent, RecordsSearchToolbarComponent, RouterLink, TableControlsComponent, TooltipDirective],
+  imports: [CustomFilterComponent, DocumentHistoryPanelComponent, FilterPillComponent, FlowStatusTagComponent, IconComponent, IconDropdownMenuComponent, PaginationComponent, RecordsSearchToolbarComponent, RouterLink, TableControlsComponent, TooltipDirective],
   template: `
     <section class="min-h-[calc(100vh-56px)] bg-[var(--sys-color-bg-surfaces-surface-lowest)]">
       <section class="bg-surface">
@@ -206,7 +209,7 @@ type AppliedCustomFilter = {
                       <td class="px-siaf-md py-siaf-sm" [class.font-bold]="$index === 0">{{ row.institutionalScope }}</td>
                       <td class="px-siaf-md py-siaf-sm" [class.font-bold]="$index === 0">{{ row.entity }}</td>
                       <td class="sticky right-0 border-l border-[var(--sys-color-divider-strong)] bg-surface px-siaf-sm py-siaf-xs">
-                        <button class="inline-flex size-8 items-center justify-center rounded-siaf-md transition hover:bg-surface-muted active:bg-[var(--sys-color-bg-states-light-pressed)]" type="button" aria-label="Historial">
+                        <button class="inline-flex size-8 items-center justify-center rounded-siaf-md transition hover:bg-surface-muted active:bg-[var(--sys-color-bg-states-light-pressed)]" type="button" aria-label="Historial" (click)="abrirHistorial(row)">
                           <siaf-icon name="history" [size]="20" />
                         </button>
                       </td>
@@ -250,6 +253,8 @@ type AppliedCustomFilter = {
         }
       </section>
     </section>
+
+    <siaf-document-history-panel [open]="historialAbierto" [summary]="resumenHistorial" (closed)="historialAbierto = false" />
   `,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -259,6 +264,15 @@ export class TrayDocumentsViewComponent implements OnInit, OnChanges {
   private readonly permissionService = inject(PermissionService);
 
   @Input() title = 'Borradores';
+
+  // ── Historial del documento (ícono del reloj de cada fila) ──
+  historialAbierto = false;
+  resumenHistorial: DocumentHistorySummary = { solicitudId: '', document: '', number: '', actionType: '' };
+
+  abrirHistorial(row: TrayDocumentRow): void {
+    this.resumenHistorial = { solicitudId: row.id, document: row.document, number: row.number, actionType: row.actionType };
+    this.historialAbierto = true;
+  }
 
   customFilterOpen = false;
   selectedStatusFilter = '';
@@ -421,6 +435,7 @@ export class TrayDocumentsViewComponent implements OnInit, OnChanges {
   private mapSolicitudToRow(s: SolicitudDemo): TrayDocumentRow {
     const rutaBase = RUTA_SOLICITUD_POR_DOCUMENTO[s.tipoDocumento];
     return {
+      id: s.id,
       route: rutaBase ? `${rutaBase}/${s.id}` : '',
       document: s.tipoDocumento,
       number: s.numero || '-',

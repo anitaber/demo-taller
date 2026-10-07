@@ -32,8 +32,8 @@ export interface ProcessMenuNode {
 }
 
 /**
- * Árbol de procesos del taller. Solo «Actuaciones preparatorias» está implementado (su `moduleRoute` abre Documentos
- * y registros, y de ahí se llega a la solicitud de anuncio de contratación futura); el resto son ejemplos de cómo se
+ * Árbol de procesos del taller. Solo «Actuaciones Preparatorias» está implementado (la hoja «Documentos y registros de…» tiene la `moduleRoute`
+ * que abre Documentos y registros, y de ahí se llega a la solicitud de anuncio de contratación futura); el resto son ejemplos de cómo se
  * ve un proceso planificado («Próximamente»). Para sumar un proceso: un nodo con `moduleRoute` (Documentos y
  * registros) y, si hace falta, otro para sus consultas, y sus rutas en `app.routes.ts`.
  *
@@ -42,24 +42,31 @@ export interface ProcessMenuNode {
 export const DEFAULT_PROCESS_TREE: ProcessMenuNode[] = [
   {
     id: 'gestion-abastecimiento',
-    label: 'Gestión de Abastecimiento',
+    label: 'Gestión de abastecimiento',
     comingSoon: true,
     expanded: true,
     children: [
       {
         id: 'actuaciones-preparatorias',
-        label: 'Actuaciones preparatorias',
-        moduleRoute: '/procesos/actuaciones-preparatorias',
+        label: 'Actuaciones Preparatorias',
         expanded: true,
-        selected: true,
         children: [
-          { id: 'segmentacion', label: 'Segmentación', comingSoon: true },
-          { id: 'formulacion-requerimiento', label: 'Formulación de Requerimiento', comingSoon: true },
-          { id: 'estrategia-contratacion', label: 'Estrategia de contratación', comingSoon: true },
-          { id: 'interaccion-mercado', label: 'Interacción con el mercado', comingSoon: true },
-          { id: 'designacion-evaluadores', label: 'Designación de evaluadores', comingSoon: true },
-          { id: 'aprobacion-expediente-contratacion', label: 'Aprobación de expediente de contratación', comingSoon: true },
-          { id: 'elaboracion-bases', label: 'Elaboración de bases', comingSoon: true },
+          {
+            id: 'documentos-registros-actuaciones-preparatorias',
+            label: 'Documentos y registros de Actuaciones Preparatorias',
+            moduleRoute: '/procesos/actuaciones-preparatorias',
+            selected: true,
+          },
+          {
+            id: 'consultas-reportes-actuaciones-preparatorias',
+            label: 'Consultas y reportes de Actuaciones Preparatorias',
+            comingSoon: true,
+          },
+          {
+            id: 'configuracion-actuaciones-preparatorias',
+            label: 'Configuración de Actuaciones Preparatorias',
+            comingSoon: true,
+          },
         ],
       },
       { id: 'clasificadores-catalogos', label: 'Clasificadores y catálogos', comingSoon: true },

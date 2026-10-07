@@ -330,6 +330,10 @@ type DocumentsRecordsRoleMode = 'creator' | 'approver' | 'readOnly';
                 <siaf-table-controls
                   selectAllLabel="Seleccionar registros"
                   [showSelection]="!!effectiveConfig.recordsSelectable"
+                  [selectedCount]="selectedRecordRows.length"
+                  [showExportAction]="!!effectiveConfig.recordExportEnabled"
+                  [exportLabel]="effectiveConfig.recordExportLabel ?? 'Descargar en Excel'"
+                  (exported)="recordsExported.emit(selectedRecordRows)"
                   [checked]="allVisibleRecordsSelected"
                   [indeterminate]="someVisibleRecordsSelected"
                   [disabled]="paginatedRows.length === 0"
@@ -340,7 +344,18 @@ type DocumentsRecordsRoleMode = 'creator' | 'approver' | 'readOnly';
                   [totalPages]="totalPages"
                   (previous)="onPreviousPage()"
                   (next)="onNextPage()"
-                />
+                >
+                  @if (effectiveConfig.recordMenuItems?.length && (!effectiveConfig.recordMenuAvailable || effectiveConfig.recordMenuAvailable(selectedRecordRows))) {
+                    <siaf-icon-dropdown-menu
+                      tableAction
+                      icon="more_vert"
+                      ariaLabel="Más opciones"
+                      align="left"
+                      [items]="effectiveConfig.recordMenuItems!"
+                      (selected)="recordMenuAction.emit({ action: $event, rows: selectedRecordRows })"
+                    />
+                  }
+                </siaf-table-controls>
               }
 
               @if (loading) {
@@ -361,6 +376,8 @@ type DocumentsRecordsRoleMode = 'creator' | 'approver' | 'readOnly';
                   [selectionDisabled]="selectionDisabled"
                   (selectionChanged)="toggleRowSelection($event)"
                   (historyOpened)="openHistory($event)"
+                  [documentIconEmits]="activeTab === 'records' && effectiveConfig.recordDocumentKind === 'personalizado'"
+                  (documentOpened)="recordDocumentRequested.emit($event)"
                 />
               }
 
@@ -434,6 +451,16 @@ export class DocumentsRecordsPageComponent implements OnChanges {
   @Output() recordsQueryChange = new EventEmitter<DocumentsQuery>();
   /** Con `recordHistoryKind: 'personalizado'`, el botón de historial de un registro emite su fila aquí. */
   @Output() recordHistoryRequested = new EventEmitter<DocumentsRecordsRow>();
+  /** Con `recordDocumentKind: 'personalizado'`, el ícono de archivo de un registro emite su fila aquí. */
+  @Output() recordDocumentRequested = new EventEmitter<DocumentsRecordsRow>();
+  /** Con `recordExportEnabled`, el botón de descarga emite los registros marcados. */
+  @Output() recordsExported = new EventEmitter<DocumentsRecordsRow[]>();
+  /** Con `recordMenuItems`, la opción elegida del menú de tres puntos y los registros marcados. */
+  @Output() recordMenuAction = new EventEmitter<{ action: string; rows: DocumentsRecordsRow[] }>();
+
+  get selectedRecordRows(): DocumentsRecordsRow[] {
+    return this.activeTab === 'records' ? this.recordRows.filter((row) => row.selected) : [];
+  }
   @Input() loading = false;
 
   // Config efectivo con reglas de rol aplicadas automáticamente
@@ -596,7 +623,9 @@ export class DocumentsRecordsPageComponent implements OnChanges {
 
   /** Identidad estable de una fila entre refreshes de la bandeja (polling). */
   private rowIdentity(row: DocumentsRecordsRow): string {
-    return String(row['documentId'] ?? row['recordId'] ?? row['number'] ?? row['document'] ?? '');
+    // `recordId` primero: varios registros comparten el `documentId` del documento que los creó y, si se casara por él,
+    // marcar uno marcaría todos al refrescarse la config (por ejemplo al pasar el mouse o con el refresco de la bandeja).
+    return String(row['recordId'] ?? row['documentId'] ?? row['number'] ?? row['document'] ?? '');
   }
 
   get filteredRows(): DocumentsRecordsRow[] {

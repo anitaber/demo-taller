@@ -16,6 +16,11 @@ export class AnunciosApiService {
     return this.http.post<{ message: string }>(`${this.base}/solicitudes/${solicitudId}/anuncio`, { items });
   }
 
+  /** Despublica los registros indicados (siguen existiendo, pero dejan de estar publicados). */
+  despublicar(ids: string[]): Observable<{ message: string }> {
+    return this.http.patch<{ message: string }>(`${this.base}/anuncios-contratacion/despublicar`, { ids });
+  }
+
   listarRegistros(): Observable<AnuncioRegistro[]> {
     return this.http.get<AnuncioRegistro[]>(`${this.base}/anuncios-contratacion`);
   }

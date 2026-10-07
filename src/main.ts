@@ -1,7 +1,7 @@
 import { APP_INITIALIZER } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withRouterConfig } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
 import { AppComponent } from './app/app.component';
@@ -14,7 +14,9 @@ import { mockBackendInterceptor } from './app/mock/mock-backend.interceptor';
 bootstrapApplication(AppComponent, {
   providers: [
     provideAnimations(),
-    provideRouter(routes),
+    // Con «reload», volver a abrir el documento en el que ya se está (desde la bandeja o una notificación) cierra
+    // el panel de la bandeja, que reemplaza a la pantalla; sin eso el clic no hacía nada.
+    provideRouter(routes, withRouterConfig({ onSameUrlNavigation: 'reload' })),
     // El backend simulado va al final: recibe la petición ya con el token del usuario, como la recibiría el servidor.
     provideHttpClient(withInterceptors([authInterceptor, errorInterceptor, mockBackendInterceptor])),
     {

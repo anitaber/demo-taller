@@ -100,6 +100,21 @@ export type DocumentsRecordsConfig = {
   /** Variante del panel "Historial del registro" de la pestaña Registros:
    *  'cuenta' (default, plan de cuentas) o 'asiento' (asiento de ajuste). */
   recordHistoryKind?: 'cuenta' | 'asiento' | 'documento' | 'personalizado';
+  /**
+   * Qué hace el ícono de archivo de un registro (columna `document-icon`): `enlace` (por defecto) abre la solicitud
+   * que lo creó; `personalizado` no navega y emite la fila por `recordDocumentRequested`, para que el proceso muestre
+   * el documento (por ejemplo, su PDF).
+   */
+  recordDocumentKind?: 'enlace' | 'personalizado';
+  /**
+   * Acciones de la pestaña Registros al marcar filas: con `recordExportEnabled` aparece el botón de descarga
+   * (emite `recordsExported`) y con `recordMenuItems`, un menú de tres puntos (emite `recordMenuAction`).
+   */
+  recordExportEnabled?: boolean;
+  recordExportLabel?: string;
+  recordMenuItems?: Array<{ label: string; value: string }>;
+  /** Si se indica, el menú de tres puntos solo aparece cuando devuelve `true` para los registros marcados. */
+  recordMenuAvailable?: (rows: DocumentsRecordsRow[]) => boolean;
   // Filtros para tab Documentos
   statusFilterOptions: string[];
   actionTypeFilterOptions: string[];

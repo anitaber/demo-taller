@@ -148,7 +148,8 @@ describe('DocumentsRecordsTableComponent — Registros con cabecera agrupada y c
   });
 
   it('las columnas fijas van a la derecha, antes del historial, apiladas con el ancho que declaran', () => {
-    const fijas = Array.from(el().querySelectorAll<HTMLElement>('tbody tr:first-child td.sticky'));
+    // Sin la columna de casillas, que también es fija pero a la izquierda.
+    const fijas = Array.from(el().querySelectorAll<HTMLElement>('tbody tr:first-child td.sticky:not(.sombra-izq)'));
 
     // publicación (130), ícono del documento (56) y el botón de historial, que mide 56.
     expect(fijas.length).toBe(3);

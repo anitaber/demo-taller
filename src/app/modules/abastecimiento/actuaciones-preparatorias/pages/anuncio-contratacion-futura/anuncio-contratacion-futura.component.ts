@@ -34,7 +34,7 @@ import { ReadonlyFieldComponent } from '../../../../../shared/ui/readonly-field/
 import { SnackbarVariant } from '../../../../../shared/ui/snackbar/snackbar.component';
 import { SummaryCardComponent, SummaryCardField } from '../../../../../shared/ui/summary-card/summary-card.component';
 import { TextAreaControlComponent } from '../../../../../shared/ui/text-area-control/text-area-control.component';
-import { TextFieldComponent } from '../../../../../shared/ui/text-field/text-field.component';
+import { TextFieldComponent, TextFieldOption } from '../../../../../shared/ui/text-field/text-field.component';
 import { buildProcessBreadcrumbs } from '../../../../../shared/utils/breadcrumbs.util';
 import { crearSnapshotFormulario, hayCambiosRespectoAlSnapshot } from '../../../../../shared/utils/form-snapshot.util';
 import { AnunciosApiService } from '../../api/anuncios-api.service';
@@ -45,6 +45,8 @@ import {
   CONTRATACIONES_SEGMENTADAS,
   ContratacionSegmentada,
   OPCIONES_MODIFICACION_CMN,
+  llevaCantidadAproximada,
+  origenTexto,
   OPCIONES_OBJETO,
   OPCIONES_ORIGEN,
 } from '../../models/contratacion-segmentada.model';
@@ -102,7 +104,7 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
         [saveDisabled]="!formValido() || saving()"
         [verifyDisabled]="!puedeVerificar() || cargando()"
         (returned)="regresar()"
-        (canceled)="regresar()"
+        (canceled)="modalCancelarSolicitud.set(true)"
         (saved)="modalGrabar.set(true)"
         (edited)="editar()"
         (verified)="modalVerificar.set(true)"
@@ -123,9 +125,9 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
         <siaf-timeline
           title="Seguimiento del proceso de Actuaciones preparatorias"
           processName="Actuaciones preparatorias"
-          itemLabel="etapa"
-          itemsLabel="etapas"
-          [items]="etapas"
+          itemLabel="procedimiento"
+          itemsLabel="procedimientos"
+          [items]="etapas()"
           [current]="etapaActual()"
           [fillCurrent]="false"
         />
@@ -133,7 +135,7 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
         <siaf-solicitude-form-card [title]="registrando() ? 'Registro de anuncio de contratación futura' : 'Anuncio de contratación futura'">
           <div card-actions class="flex items-center gap-siaf-sm">
             @if (registrando()) {
-              <siaf-button variant="outline" size="md" (click)="cancelarRegistro()">Cancelar</siaf-button>
+              <siaf-button variant="outline" size="md" (click)="modalCancelar.set(true)">Cancelar</siaf-button>
               <siaf-button variant="filled" size="md" [disabled]="!registroCompleto()" (click)="agregarItem()">Aceptar</siaf-button>
             } @else if (!soloLectura()) {
               <siaf-button variant="accent" size="md" icon="add" [iconOnly]="true" ariaLabel="Agregar anuncio de contratación futura" (click)="registrando.set(true)" />
@@ -144,14 +146,14 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
             <div class="flex flex-col gap-siaf-sm">
               <div class="flex min-h-10 items-center justify-between gap-siaf-md">
                 <h3 class="m-0 text-sm font-bold uppercase text-text">Contratación segmentada</h3>
-                <siaf-button variant="accent" size="md" icon="search" [iconOnly]="true" ariaLabel="Seleccionar tipo de contratación" (click)="abrirPanel()" />
+                <siaf-button variant="accent" size="md" icon="search" [iconOnly]="true" ariaLabel="Seleccionar tipo de contratación" [disabled]="!!contratacion()" (click)="abrirPanel()" />
               </div>
               @if (contratacion()) {
                 <siaf-summary-card
                   [fields]="camposContratacion()"
                   [bordered]="true"
                   closeLabel="Quitar contratación segmentada"
-                  (closed)="quitarContratacion()"
+                  (closed)="modalQuitar.set(true)"
                 />
               } @else {
                 <div class="flex min-h-[49px] items-center rounded-siaf-md bg-[var(--sys-color-bg-surfaces-surface-low)] px-siaf-md py-siaf-sm">
@@ -163,7 +165,20 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
             @if (contratacion(); as c) {
               <div class="flex flex-col gap-siaf-md">
                 <h3 class="m-0 text-sm font-bold uppercase text-text">Datos de la contratación</h3>
-                <readonly-field caption="Tipo de procedimiento" [value]="c.tipoProcedimiento" />
+                @if (c.origen === 'CMN') {
+                  <!-- Con origen CMN el tipo de procedimiento se elige: la lista es la del objeto de la contratación. -->
+                  <siaf-input
+                    class="block w-full md:w-1/2"
+                    label="Tipo de procedimiento"
+                    type="select"
+                    [required]="true"
+                    [options]="opcionesTipoProcedimiento()"
+                    [value]="tipoProcedimientoCmn()"
+                    (valueChange)="tipoProcedimientoCmn.set('' + $any($event))"
+                  />
+                } @else {
+                  <readonly-field caption="Tipo de procedimiento" [value]="c.tipoProcedimiento" />
+                }
                 <text-area-control
                   placeholder="Alcance (Especificaciones Técnicas Preliminares)"
                   [maxlength]="1000"
@@ -172,7 +187,9 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
                 />
                 <div class="grid items-center gap-siaf-md md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   <div class="relative">
+                    <!-- Sin las flechas del número: se superponen con el ícono de ayuda. -->
                     <siaf-input
+                      class="block [&_input]:[appearance:textfield] [&_input::-webkit-inner-spin-button]:appearance-none [&_input::-webkit-outer-spin-button]:appearance-none"
                       label="Plazo entrega (días calendario)"
                       type="number"
                       [value]="plazoEntrega()"
@@ -204,7 +221,7 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
                       </button>
                     </siaf-popover>
                   </div>
-                  @if (c.objeto !== 'Obra') {
+                  @if (llevaCantidad(c.objeto)) {
                     <readonly-field caption="Cantidad aproximada" [value]="cantidadTexto(c)" />
                   }
                 </div>
@@ -220,6 +237,8 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
                     position="top"
                     [fullWidth]="true"
                     [defaultToToday]="false"
+                    [minDate]="hoy"
+                    [error]="errorFechaConvocatoria()"
                     [value]="fechaConvocatoria()"
                     (valueChange)="fechaConvocatoria.set($event)"
                   />
@@ -249,6 +268,7 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
                     </button>
                   </siaf-popover>
                 </div>
+                <readonly-field caption="Días de anticipación" [value]="diasAnticipacion() === null ? '—' : diasAnticipacion() + ' días'" />
                 </div>
               </div>
             }
@@ -415,6 +435,45 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
         (closed)="modalBorrarItem.set(false)"
       />
 
+      <siaf-modal
+        variant="cancel"
+        title="¿Quitar la contratación segmentada?"
+        description="Se perderán los datos registrados."
+        confirmLabel="Aceptar"
+        cancelLabel="Cancelar"
+        [open]="modalQuitar()"
+        [showIllustration]="false"
+        (confirmed)="modalQuitar.set(false); quitarContratacion()"
+        (canceled)="modalQuitar.set(false)"
+        (closed)="modalQuitar.set(false)"
+      />
+
+      <siaf-modal
+        variant="cancel"
+        title="¿Cancelar el registro?"
+        description="Se perderán los datos registrados."
+        confirmLabel="Aceptar"
+        cancelLabel="Cancelar"
+        [open]="modalCancelar()"
+        [showIllustration]="false"
+        (confirmed)="modalCancelar.set(false); cancelarRegistro()"
+        (canceled)="modalCancelar.set(false)"
+        (closed)="modalCancelar.set(false)"
+      />
+
+      <!-- «Cancelar» de la cabecera: el modal «cancel» del kit (texto e ilustración de los lineamientos). -->
+      <siaf-modal
+        variant="cancel"
+        confirmVariant="primary"
+        confirmLabel="Aceptar"
+        cancelLabel="Cancelar"
+        [open]="modalCancelarSolicitud()"
+        [showIllustration]="true"
+        (confirmed)="modalCancelarSolicitud.set(false); regresar()"
+        (canceled)="modalCancelarSolicitud.set(false)"
+        (closed)="modalCancelarSolicitud.set(false)"
+      />
+
       <siaf-request-approval-modals
         [saveOpen]="modalGrabar()"
         [verifyOpen]="modalVerificar()"
@@ -573,14 +632,50 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
   // ── Datos de la contratación elegida ──────────────────────────────
   readonly alcance = signal('');
   readonly plazoEntrega = signal('');
+  /** Tipo de procedimiento elegido; solo se usa cuando el origen de la contratación es CMN. */
+  readonly tipoProcedimientoCmn = signal('');
+  /** Tipos de procedimiento que se ofrecen según el objeto de la contratación (los que ya usa el PAC para ese objeto). */
+  readonly opcionesTipoProcedimiento = computed((): TextFieldOption[] => {
+    const objeto = this.contratacion()?.objeto;
+    const tipos = new Set(
+      CONTRATACIONES_SEGMENTADAS.filter((c) => c.objeto === objeto && c.origen === 'PAC').map((c) => c.tipoProcedimiento),
+    );
+    return [...tipos].map((v) => ({ label: v, value: v }));
+  });
   readonly fechaConvocatoria = signal('');
   /** El registro está completo cuando hay contratación elegida, alcance, un plazo de entrega válido y la fecha de convocatoria. */
   readonly registroCompleto = computed(() =>
     !!this.contratacion()
     && !!this.alcance().trim()
+    && (this.contratacion()?.origen !== 'CMN' || !!this.tipoProcedimientoCmn())
     && Number(this.plazoEntrega()) > 0
-    && !!this.fechaConvocatoria(),
+    && this.cumpleAnticipacion(),
   );
+
+  /** Hoy en formato ISO (YYYY-MM-DD, hora local): la fecha de convocatoria no puede ser anterior. */
+  readonly hoy = this.aIso(new Date());
+  /** Plazo mínimo, en días calendario, entre la aprobación del anuncio y la fecha aproximada de convocatoria. */
+  private readonly PLAZO_MINIMO_DIAS = 40;
+
+  /** Días calendario entre hoy y la fecha elegida (null sin fecha). */
+  readonly diasAnticipacion = computed((): number | null => {
+    const fecha = this.fechaConvocatoria();
+    if (!fecha) return null;
+    const [a, m, d] = fecha.split('-').map(Number);
+    const [ha, hm, hd] = this.hoy.split('-').map(Number);
+    return Math.round((Date.UTC(a, m - 1, d) - Date.UTC(ha, hm - 1, hd)) / 86_400_000);
+  });
+  readonly errorFechaConvocatoria = computed(() => {
+    const dias = this.diasAnticipacion();
+    return dias !== null && dias < this.PLAZO_MINIMO_DIAS ? 'No cumple el plazo mínimo de 40 días calendario' : '';
+  });
+  private cumpleAnticipacion(): boolean {
+    const dias = this.diasAnticipacion();
+    return dias !== null && dias >= this.PLAZO_MINIMO_DIAS;
+  }
+  private aIso(f: Date): string {
+    return `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`;
+  }
 
   /** Ayuda (popover) abierta: se muestra con el hover o el foco del ícono ⓘ. */
   readonly ayudaAbierta = signal<'plazo' | 'fecha' | null>(null);
@@ -618,18 +713,24 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
       { label: 'Código', value: c.codigo },
       { label: 'Descripción', value: c.descripcion.toUpperCase() },
       { label: 'Objeto de contratación', value: c.objeto.toUpperCase() },
-      { label: 'Origen', value: c.origen },
+      { label: 'Origen', value: origenTexto(c) },
     ];
   });
+
+  readonly llevaCantidad = llevaCantidadAproximada;
 
   cantidadTexto(c: ContratacionSegmentada): string {
     return c.cantidadAproximada.toLocaleString('en-US');
   }
 
+  /** Confirmación al quitar la contratación elegida: se pierden alcance, plazo y fecha. */
+  readonly modalQuitar = signal(false);
+
   quitarContratacion(): void {
     this.contratacion.set(null);
     this.alcance.set('');
     this.plazoEntrega.set('');
+    this.tipoProcedimientoCmn.set('');
     this.fechaConvocatoria.set('');
     this.cerrarAyuda();
   }
@@ -690,6 +791,7 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
     this.contratacion.set(CONTRATACIONES_SEGMENTADAS.find((c) => c.codigo === item.contratacionCodigo) ?? null);
     this.alcance.set(item.alcance);
     this.plazoEntrega.set(String(item.plazoEntrega));
+    this.tipoProcedimientoCmn.set(item.origen === 'CMN' ? item.tipoProcedimiento : '');
     this.fechaConvocatoria.set(item.fechaConvocatoria);
     this.registrando.set(true);
   }
@@ -734,8 +836,8 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
       descripcion: c.descripcion,
       objeto: c.objeto,
       origen: c.origen,
-      tipoProcedimiento: c.tipoProcedimiento,
-      cantidadAproximada: c.objeto === 'Obra' ? null : c.cantidadAproximada,
+      tipoProcedimiento: c.origen === 'CMN' ? this.tipoProcedimientoCmn() : c.tipoProcedimiento,
+      cantidadAproximada: llevaCantidadAproximada(c.objeto) ? c.cantidadAproximada : null,
       alcance: this.alcance().trim(),
       plazoEntrega: Number(this.plazoEntrega()),
       fechaConvocatoria: this.fechaConvocatoria(),
@@ -748,6 +850,9 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
     this.registrando.set(false);
     this.avisarLista(editado ? 'Se ha actualizado en la lista con éxito.' : 'Se ha agregado a la lista con éxito.');
   }
+
+  /** Confirmación al cancelar el registro del anuncio en curso. */
+  readonly modalCancelar = signal(false);
 
   cancelarRegistro(): void {
     this.itemEnEdicion.set(null);
@@ -766,8 +871,12 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
   readonly filtradas = computed(() => {
     const texto = this.busqueda().trim().toLowerCase();
     const { objeto, origen, modificacionCmn } = this.filtros();
+    // Una contratación segmentada ya registrada en la solicitud no se ofrece otra vez (la que se está editando sí).
+    const enEdicion = this.itemEnEdicion();
+    const yaRegistradas = new Set(this.items().filter((i) => i.id !== enEdicion).map((i) => i.contratacionCodigo));
     return CONTRATACIONES_SEGMENTADAS.filter((c) =>
-      (!objeto || c.objeto === objeto)
+      !yaRegistradas.has(c.codigo)
+      && (!objeto || c.objeto === objeto)
       && (!origen || c.origen === origen)
       && (!modificacionCmn || c.modificacionCmn === modificacionCmn)
       && (!texto || [c.codigo, c.descripcion, c.objeto, c.origen, c.tipoProcedimiento].some((v) => v.toLowerCase().includes(texto))),
@@ -821,6 +930,7 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
 
   aceptarSeleccion(): void {
     this.contratacion.set(CONTRATACIONES_SEGMENTADAS.find((c) => c.id === this.seleccionTemporal()) ?? null);
+    this.tipoProcedimientoCmn.set('');
     this.cerrarPanel();
   }
 
@@ -837,16 +947,29 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
     ];
   });
 
-  readonly etapas: TimelineItem[] = [
-    { label: 'Segmentación', date: '15/09/26', dateInfo: 'Aprobado', description: 'Segmentación aprobada' },
-    { label: 'Anuncio de contratación futura' },
-    { label: 'Formulación de Requerimiento' },
-    { label: 'Estrategia de contratación' },
-    { label: 'Interacción con el mercado' },
-    { label: 'Designación de evaluadores' },
-    { label: 'Aprobación de expediente de contratación' },
-    { label: 'Elaboración de bases' },
-  ];
+  /** Seguimiento del proceso: con el anuncio aprobado, su hito pasa a «Aprobado» con la fecha de aprobación. */
+  readonly etapas = computed((): TimelineItem[] => {
+    const aprobacion = [...(this.solicitud()?.historialEstados ?? [])].reverse().find((h) => (h.estadoNuevo ?? '').toUpperCase() === 'APROBADO');
+    const fecha = aprobacion ? new Date(aprobacion.createdAt) : null;
+    const anuncio: TimelineItem = fecha && this.estado() === 'APROBADO'
+      ? {
+          label: 'Anuncio de contratación futura',
+          date: `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}/${String(fecha.getFullYear()).slice(-2)}`,
+          dateInfo: 'Aprobado',
+          description: 'Anuncio aprobado',
+        }
+      : { label: 'Anuncio de contratación futura' };
+    return [
+      { label: 'Segmentación', date: '15/09/26', dateInfo: 'Aprobado', description: 'Segmentación aprobada' },
+      anuncio,
+      { label: 'Formulación de Requerimiento' },
+      { label: 'Estrategia de contratación' },
+      { label: 'Interacción con el mercado' },
+      { label: 'Designación de evaluadores' },
+      { label: 'Aprobación de expediente de contratación' },
+      { label: 'Elaboración de bases' },
+    ];
+  });
 
   // ── Grabar solo con cambios ───────────────────────────────────────
   // La foto se toma al pulsar Editar; sin foto (documento nuevo) se asume que hay cambios.
@@ -871,6 +994,9 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
     this.cancelarTemporizadorAyuda();
     this.cancelarTemporizadorAviso();
   }
+
+  /** Confirmación del «Cancelar» de la cabecera (junto a Grabar y Verificar). */
+  readonly modalCancelarSolicitud = signal(false);
 
   regresar(): void {
     if (this.editando()) {

@@ -5,6 +5,7 @@ import { SolicitudResponse, SolicitudesApiService } from '../../../../../core/ap
 import { ActionTrackerComponent, ActionTrackerSummary } from '../../../../../shared/ui/action-tracker/action-tracker.component';
 import { FocoDirective } from '../../../../../shared/ui/foco/foco.directive';
 import { IconComponent } from '../../../../../shared/ui/icon/icon.component';
+import { ReadonlyFieldComponent } from '../../../../../shared/ui/readonly-field/readonly-field.component';
 import { RecordStatusTagComponent } from '../../../../../shared/ui/record-status-tag/record-status-tag.component';
 import { SidePanelAnimacion } from '../../../../../shared/ui/side-panel-animacion';
 import { StepItem, StepsComponent } from '../../../../../shared/ui/steps/steps.component';
@@ -24,7 +25,7 @@ import { AnuncioRegistro, NOMBRE_DOCUMENTO } from '../../models/anuncio-contrata
 @Component({
   selector: 'siaf-anuncio-registro-history-panel',
   standalone: true,
-  imports: [ActionTrackerComponent, FocoDirective, IconComponent, NgTemplateOutlet, RecordStatusTagComponent, StepsComponent, SummaryCardComponent],
+  imports: [ActionTrackerComponent, FocoDirective, IconComponent, NgTemplateOutlet, ReadonlyFieldComponent, RecordStatusTagComponent, StepsComponent, SummaryCardComponent],
   template: `
     @if (anim.visible()) {
       <section
@@ -45,7 +46,7 @@ import { AnuncioRegistro, NOMBRE_DOCUMENTO } from '../../models/anuncio-contrata
 
           <div class="min-h-0 flex-1 overflow-y-auto border-y border-[var(--sys-color-divider-strong)] bg-surface">
             @if (registro; as r) {
-              <div class="mx-auto grid min-h-full w-full max-w-[1160px] grid-cols-1 gap-[64px] px-siaf-md py-siaf-md sm:px-siaf-xl lg:grid-cols-[210px_minmax(0,890px)] lg:px-0">
+              <div class="grid min-h-full w-full grid-cols-1 gap-siaf-lg px-siaf-md py-siaf-md sm:px-siaf-xl lg:grid-cols-[258px_minmax(0,1fr)]">
                 <aside class="hidden lg:block">
                   <!-- Versiones del registro: hoy solo la de creación. -->
                   <siaf-steps class="sticky top-siaf-md block" variant="cards" [steps]="versiones()" [activeStep]="1" />
@@ -77,7 +78,7 @@ import { AnuncioRegistro, NOMBRE_DOCUMENTO } from '../../models/anuncio-contrata
 
                       <section class="flex flex-col gap-siaf-md">
                         <ng-container [ngTemplateOutlet]="tituloSeccion" [ngTemplateOutletContext]="{ titulo: 'Datos de la contratación' }" />
-                        <div class="grid gap-siaf-md md:grid-cols-[320px_1fr]">
+                        <div class="grid gap-siaf-md">
                           <ng-container [ngTemplateOutlet]="campoLectura" [ngTemplateOutletContext]="{ etiqueta: 'Tipo de procedimiento', valor: r.tipoProcedimiento }" />
                         </div>
                         <ng-container [ngTemplateOutlet]="campoLectura" [ngTemplateOutletContext]="{ etiqueta: 'Alcance (especificaciones técnicas preliminares)', valor: r.alcance }" />
@@ -91,7 +92,7 @@ import { AnuncioRegistro, NOMBRE_DOCUMENTO } from '../../models/anuncio-contrata
 
                       <section class="flex flex-col gap-siaf-md">
                         <ng-container [ngTemplateOutlet]="tituloSeccion" [ngTemplateOutletContext]="{ titulo: 'Convocatoria' }" />
-                        <div class="grid gap-siaf-md md:grid-cols-[320px_1fr]">
+                        <div class="grid gap-siaf-md">
                           <ng-container [ngTemplateOutlet]="campoLectura" [ngTemplateOutletContext]="{ etiqueta: 'Fecha aproximada de convocatoria', valor: fechaCorta(r.fechaConvocatoria) }" />
                         </div>
                       </section>
@@ -113,12 +114,9 @@ import { AnuncioRegistro, NOMBRE_DOCUMENTO } from '../../models/anuncio-contrata
             </div>
           </ng-template>
 
-          <!-- Campo de solo lectura: borde con la etiqueta montada sobre él, como un campo de texto del kit. -->
+          <!-- Campo de solo lectura del kit (etiqueta arriba y valor debajo, sin borde), como en el diseño. -->
           <ng-template #campoLectura let-etiqueta="etiqueta" let-valor="valor">
-            <div class="relative min-h-10 min-w-0 rounded-siaf-md border border-[var(--sys-color-border-states-enabled)] px-siaf-md py-siaf-xs">
-              <span class="absolute -top-[9px] left-[13px] bg-surface px-siaf-xxs text-xs font-medium leading-normal text-[var(--sys-color-text-neutral-low)]">{{ etiqueta }}</span>
-              <p class="m-0 py-[3px] text-sm leading-normal tracking-[0.025px] text-[var(--sys-color-text-neutral-medium)]">{{ valor }}</p>
-            </div>
+            <readonly-field [caption]="etiqueta" [value]="valor" />
           </ng-template>
 
           <ng-template #tituloSeccion let-titulo="titulo">

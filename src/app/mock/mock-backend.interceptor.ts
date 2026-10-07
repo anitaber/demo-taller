@@ -457,6 +457,17 @@ const cambiarEstado: Manejador = ({ req, datos, params, sesion }) => {
 const registrosAnuncios: Manejador = ({ datos, sesion }) =>
   ok(datos.anuncios.filter((r) => !sesion || r.entidadSiglas === sesion.perfil.entidadSiglas));
 
+const despublicarAnuncios: Manejador = ({ req, datos, sesion }) => {
+  if (!sesion) return error(401, 'Sesión expirada.');
+  if (sesion.perfil.rolCodigo !== 'APROBADOR') return error(403, 'Solo el aprobador puede despublicar registros.');
+  const ids = (req.body as { ids?: string[] } | null)?.ids ?? [];
+  for (const registro of datos.anuncios) {
+    if (ids.includes(registro.id) && registro.entidadSiglas === sesion.perfil.entidadSiglas) registro.publicacion = 'Despublicado';
+  }
+  guardarDatos(datos);
+  return ok({ message: 'Registros despublicados' });
+};
+
 const registrosCuentas: Manejador = ({ datos, sesion }) =>
   ok(datos.registros.filter((r) => !sesion || r.entidadSiglas === sesion.perfil.entidadSiglas));
 
@@ -489,6 +500,7 @@ const RUTAS: [string, RegExp, Manejador][] = [
   ['GET', /^\/solicitudes\/([^/]+)$/, detalleSolicitud],
   ['PATCH', /^\/solicitudes\/([^/]+)$/, actualizarSolicitud],
   ['GET', /^\/anuncios-contratacion$/, registrosAnuncios],
+  ['PATCH', /^\/anuncios-contratacion\/despublicar$/, despublicarAnuncios],
   ['GET', /^\/cuentas-bancarias$/, registrosCuentas],
 ];
 

@@ -87,6 +87,13 @@ export const ANUNCIOS_DOCUMENTS_CONFIG: DocumentsRecordsConfig = {
   recordHistoryDocumentLabel: NOMBRE_DOCUMENTO,
   // El historial del registro tiene su propio panel (el del anuncio, con su contratación y trazabilidad).
   recordHistoryKind: 'personalizado',
+  // El ícono de archivo abre el PDF del anuncio (visor propio del proceso), no la solicitud.
+  recordDocumentKind: 'personalizado',
+  // Al marcar registros: descargar en Excel y el menú de tres puntos con «Despublicar».
+  recordExportEnabled: true,
+  recordMenuItems: [{ label: 'Despublicar', value: 'despublicar' }],
+  // Solo se ofrece si entre los marcados hay alguno publicado: lo ya despublicado no se vuelve a despublicar.
+  recordMenuAvailable: (rows) => rows.some((fila) => fila['publicacion'] !== 'Despublicado'),
   statusFilterOptions: [ESTADO.ELABORADO, ESTADO.VERIFICADO, ESTADO.OBSERVADO, ESTADO.APROBADO, ESTADO.RECHAZADO],
   actionTypeFilterOptions: ['Creación'],
   filterCampoOptions,

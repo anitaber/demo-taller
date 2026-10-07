@@ -191,6 +191,23 @@ describe('mockBackendInterceptor', () => {
     expect(quienes).toEqual(['Ana', 'Ana']);
   }));
 
+  it('despublicar un registro es solo del aprobador y lo deja en «Despublicado»', fakeAsync(() => {
+    const ana = entrar('11111111');
+    const id = elaborar(ana);
+    esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'VERIFICADO' }, { headers: ana }));
+    const luis = entrar('22222222');
+    esperar(http.patch(`${API}/solicitudes/${id}/estado`, { estadoNuevo: 'APROBADO' }, { headers: luis }));
+    const [registro] = esperar(http.get<AnuncioRegistro[]>(`${API}/anuncios-contratacion`, { headers: luis })).valor!;
+    expect(registro.publicacion ?? 'Publicado').toBe('Publicado');
+
+    // El creador no puede.
+    expect(esperar(http.patch(`${API}/anuncios-contratacion/despublicar`, { ids: [registro.id] }, { headers: ana })).error?.status).toBe(403);
+
+    esperar(http.patch(`${API}/anuncios-contratacion/despublicar`, { ids: [registro.id] }, { headers: luis }));
+    const despues = esperar(http.get<AnuncioRegistro[]>(`${API}/anuncios-contratacion`, { headers: luis })).valor!;
+    expect(despues[0].publicacion).toBe('Despublicado');
+  }));
+
   it('una solicitud rechazada no genera registros', fakeAsync(() => {
     const ana = entrar('11111111');
     const id = elaborar(ana);
@@ -205,10 +222,10 @@ describe('mockBackendInterceptor', () => {
   it('migra los datos guardados con el número largo al número corto sin perder nada', () => {
     localStorage.setItem('taller-siaf-rp:datos', JSON.stringify({
       version: 2,
-      solicitudes: [{ id: 'sol-1', numero: 'PAB-SACF-00002-2026-MEF-OGA' }],
+      solicitudes: [{ id: 'sol-1', numero: 'PAB-SACF-00002-2026-MEF-OGA', catDocumento: { codigo: 'SACF' }, createdAt: '2026-10-06T10:00:00.000Z', estado: 'ELABORADO' }],
       registros: [],
-      anuncios: [{ id: 'acf-1', numeroDocumento: 'PAB-SACF-00002-2026-MEF-OGA' }],
-      notificaciones: [{ id: 'not-1', mensaje: 'La solicitud PAB-SACF-00002-2026-MEF-OGA fue aprobada.' }],
+      anuncios: [{ id: 'acf-1', documentoId: 'sol-1', numeroDocumento: 'PAB-SACF-00002-2026-MEF-OGA' }],
+      notificaciones: [{ id: 'not-1', mensaje: 'La solicitud PAB-SACF-00002-2026-MEF-OGA fue aprobada.', documento: { id: 'sol-1' } }],
       correlativoDocumento: 2,
       correlativoRegistro: 0,
       correlativoAnuncio: 1,
@@ -217,11 +234,12 @@ describe('mockBackendInterceptor', () => {
 
     const datos = leerDatos();
 
-    expect(datos.version).toBe(4);
-    expect(datos.solicitudes[0].numero).toBe('0002');
-    expect(datos.anuncios[0].numeroDocumento).toBe('0002');
-    expect(datos.notificaciones[0]['mensaje']).toBe('La solicitud 0002 fue aprobada.');
-    expect(datos.correlativoDocumento).toBe(2);
+    // El número largo pasa al corto (0002) y, como no existe la 0001, la solicitud vigente se vuelve a numerar como 0001.
+    expect(datos.version).toBe(5);
+    expect(datos.solicitudes[0].numero).toBe('0001');
+    expect(datos.anuncios[0].numeroDocumento).toBe('0001');
+    expect(datos.notificaciones[0]['mensaje']).toBe('La solicitud 0001 fue aprobada.');
+    expect(datos.correlativoDocumento).toBe(1);
   });
 
   it('migra los datos antiguos: lo hecho con perfil creador queda a nombre del creador de la solicitud', () => {

@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Out
 import { FlowStatusTagComponent, FlowStatus } from '../../ui/flow-status-tag/flow-status-tag.component';
 import { IconComponent } from '../../ui/icon/icon.component';
 import { SolicitudesApiService } from '../../../core/api/solicitudes-api.service';
+import { CurrentUserService } from '../../../core/auth/current-user.service';
 import { ESTADO } from '../../../core/models/documento.model';
 import { FocoDirective } from '../../ui/foco/foco.directive';
 
@@ -252,6 +253,7 @@ const FLOW_STATUS_MAP: Record<string, FlowStatus> = {
 })
 export class DocumentHistoryPanelComponent implements OnChanges {
   private readonly solicitudesApi = inject(SolicitudesApiService);
+  private readonly currentUser = inject(CurrentUserService);
 
   @Input() open = false;
   @Input() summary: DocumentHistorySummary = { solicitudId: '', document: '', number: '', actionType: '' };
@@ -294,7 +296,8 @@ export class DocumentHistoryPanelComponent implements OnChanges {
           const rolNombre = h.perfil?.cfgPerfil?.rol?.nombre ?? '';
           return {
             usuario: nombreUsuario,
-            rol: rolNombre,
+            // «Unidad Organizacional»: la del usuario en sesión (DEC); sin ella, el nombre del rol.
+            rol: this.currentUser.office || rolNombre,
             fecha: d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
             hora: d.toLocaleTimeString('es-PE', { hour12: false }),
             estado: (h.estadoNuevo ?? '').toUpperCase(),

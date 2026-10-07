@@ -4793,9 +4793,24 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "descripcion": "Consulta remota de la pestaña Documentos (solo si la config declara `serverQuery`): se emite al confirmar la búsqueda (Enter/lupa), al cambiar de página y al cambiar el tamaño de página. El padre la resuelve contra el backend y devuelve `documentRows` ya filtrados y paginados."
       },
       {
+        "nombre": "recordDocumentRequested",
+        "tipo": "DocumentsRecordsRow",
+        "descripcion": "Con `recordDocumentKind: 'personalizado'`, el ícono de archivo de un registro emite su fila aquí."
+      },
+      {
         "nombre": "recordHistoryRequested",
         "tipo": "DocumentsRecordsRow",
         "descripcion": "Con `recordHistoryKind: 'personalizado'`, el botón de historial de un registro emite su fila aquí."
+      },
+      {
+        "nombre": "recordMenuAction",
+        "tipo": "{ action: string; rows: DocumentsRecordsRow[]; }",
+        "descripcion": "Con `recordMenuItems`, la opción elegida del menú de tres puntos y los registros marcados."
+      },
+      {
+        "nombre": "recordsExported",
+        "tipo": "DocumentsRecordsRow[]",
+        "descripcion": "Con `recordExportEnabled`, el botón de descarga emite los registros marcados."
       },
       {
         "nombre": "recordsQueryChange",
@@ -4989,6 +5004,13 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "descripcion": null
       },
       {
+        "nombre": "documentIconEmits",
+        "tipo": "boolean",
+        "porDefecto": "false",
+        "requerida": false,
+        "descripcion": "Con `documentIconEmits`, el ícono de archivo emite la fila en vez de navegar a la solicitud."
+      },
+      {
         "nombre": "documentRoute",
         "tipo": "(row: DocumentsRecordsRow) => string",
         "porDefecto": "() => ''",
@@ -5032,6 +5054,11 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
       }
     ],
     "eventos": [
+      {
+        "nombre": "documentOpened",
+        "tipo": "DocumentsRecordsRow",
+        "descripcion": null
+      },
       {
         "nombre": "historyOpened",
         "tipo": "DocumentsRecordsRow",
@@ -5077,14 +5104,16 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
       {
         "token": "--sys-color-bg-surfaces-surface",
         "via": [
-          "bg-surface"
+          "bg-surface",
+          "var()"
         ]
       },
       {
         "token": "--sys-color-bg-surfaces-surface-high",
         "via": [
           "bg-surface-high",
-          "bg-surface-muted"
+          "bg-surface-muted",
+          "var()"
         ]
       },
       {
@@ -14639,6 +14668,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
     "usa": [
       "[siafTooltip]",
       "siaf-custom-filter",
+      "siaf-document-history-panel",
       "siaf-filter-pill",
       "siaf-flow-status-tag",
       "siaf-icon",

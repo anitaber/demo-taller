@@ -1,8 +1,8 @@
 import { buildProcessBreadcrumbs, buildProcessPath } from './breadcrumbs.util';
 
 // Hoja real del árbol de procesos, con dos ancestros agrupadores.
-const PROCESS_ID = 'designacion-evaluadores';
-const PROCESS_ROUTE = '/procesos/designacion-evaluadores';
+const PROCESS_ID = 'configuracion-actuaciones-preparatorias';
+const PROCESS_ROUTE = '/procesos/configuracion-actuaciones-preparatorias';
 
 describe('breadcrumbs.util', () => {
   describe('buildProcessBreadcrumbs', () => {
