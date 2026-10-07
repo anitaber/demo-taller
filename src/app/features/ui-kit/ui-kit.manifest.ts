@@ -10522,7 +10522,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "tipo": "{ key: string; label: string; }[]",
         "porDefecto": "[]",
         "requerida": false,
-        "descripcion": "Filtros ya aplicados (clave y texto): se pintan bajo el buscador con «Filtrar por», una × por filtro y «Borrar filtros»."
+        "descripcion": null
       },
       {
         "nombre": "applyLabel",
@@ -10747,6 +10747,13 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "porDefecto": "1",
         "requerida": false,
         "descripcion": "Total de páginas."
+      },
+      {
+        "nombre": "truncateHeaders",
+        "tipo": "boolean",
+        "porDefecto": "false",
+        "requerida": false,
+        "descripcion": "Una sola línea por título de columna: se corta con «…» y el tooltip muestra el título completo. Las columnas necesitan ancho (`widthClass`)."
       }
     ],
     "eventos": [
@@ -10939,6 +10946,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
     ],
     "usa": [
       "[siafFoco]",
+      "[siafTooltip]",
       "siaf-button",
       "siaf-form-table-search",
       "siaf-icon",

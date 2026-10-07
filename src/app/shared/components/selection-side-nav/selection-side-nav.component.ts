@@ -1,6 +1,7 @@
 import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 
+import { TooltipDirective } from '../../ui/tooltip/tooltip.directive';
 import { TagComponent } from '../../ui/tag/tag.component';
 import { ButtonComponent } from '../../ui/button/button.component';
 import { IconComponent } from '../../ui/icon/icon.component';
@@ -107,7 +108,7 @@ export type SelectionMode = 'single' | 'multiple';
 @Component({
   selector: 'siaf-selection-side-nav',
   standalone: true,
-  imports: [FocoDirective, ButtonComponent, FormTableSearchComponent, IconComponent, NgClass, PaginationComponent, TableControlsComponent, TagComponent],
+  imports: [FocoDirective, ButtonComponent, FormTableSearchComponent, IconComponent, NgClass, PaginationComponent, TableControlsComponent, TagComponent, TooltipDirective],
   template: `
     @if (anim.visible()) {
       <section
@@ -202,15 +203,17 @@ export type SelectionMode = 'single' | 'multiple';
               </div>
             } @else {
             <div class="mt-siaf-md siaf-sidepanel-table-scroll">
-              <table class="w-full border-collapse text-left text-sm" [ngClass]="tableMinWidthClass">
+              <table class="w-full border-collapse text-left text-sm" [class.table-fixed]="truncateHeaders" [ngClass]="tableMinWidthClass">
                 <thead>
                   <tr class="h-10 bg-[var(--sys-color-bg-surfaces-surface-high)] text-xs font-bold uppercase text-text">
                     <th class="w-12 rounded-l-siaf-sm px-siaf-sm"></th>
                     @for (col of columns; track col.key; let last = $last) {
                       <th
                         class="px-siaf-md py-siaf-sm"
+                        [class.truncate]="truncateHeaders"
                         [class.rounded-r-siaf-sm]="last"
                         [ngClass]="col.widthClass || ''"
+                        [siafTooltip]="truncateHeaders ? col.label : ''"
                       >
                         {{ col.label }}
                       </th>
@@ -341,6 +344,8 @@ export class SelectionSideNavComponent<T = Record<string, unknown>> implements O
   @Input() filterOpen = false;
   @Input() filterTitle = 'Filtrar';
   /** Filtros ya aplicados (clave y texto): se pintan bajo el buscador con «Filtrar por», una × por filtro y «Borrar filtros». */
+  /** Una sola línea por título de columna: se corta con «…» y el tooltip muestra el título completo. Las columnas necesitan ancho (`widthClass`). */
+  @Input() truncateHeaders = false;
   @Input() appliedFilters: Array<{ key: string; label: string }> = [];
   @Input() applyLabel = 'Aplicar';
   /** 'single' (radio) o 'multiple' (checkbox). */
