@@ -387,6 +387,9 @@ const SIN_FILTROS: FiltrosContratacion = { objeto: '', origen: '', modificacionC
         (nextPage)="pagina.set(pagina() + 1)"
         (rowsPerPageChange)="cambiarFilasPorPagina($event)"
         [filterOpen]="filtrosAbiertos()"
+        [appliedFilters]="chipsFiltros()"
+        (filterRemoved)="quitarFiltro($event)"
+        (filtersCleared)="borrarFiltros()"
         (filterRequested)="abrirFiltros()"
         (filterCanceled)="filtrosAbiertos.set(false)"
         (filterApplied)="aplicarFiltros()"
@@ -905,6 +908,27 @@ export class AnuncioContratacionFuturaComponent implements OnInit, OnDestroy {
   /** El N° de modificación solo aplica al CMN: al cambiar de origen se limpia. */
   cambiarOrigen(valor: string): void {
     this.borrador.update((b) => ({ ...b, origen: valor, modificacionCmn: '' }));
+  }
+
+  /** Filtros aplicados, como se muestran bajo el buscador del panel («Bien», «PAC», «Mod. 1»). */
+  readonly chipsFiltros = computed(() => {
+    const { objeto, origen, modificacionCmn } = this.filtros();
+    return [
+      ...(objeto ? [{ key: 'objeto', label: objeto }] : []),
+      ...(origen ? [{ key: 'origen', label: origen }] : []),
+      ...(modificacionCmn ? [{ key: 'modificacionCmn', label: `Mod. ${modificacionCmn}` }] : []),
+    ];
+  });
+
+  quitarFiltro(clave: string): void {
+    // Sin origen CMN no hay N° de modificación.
+    this.filtros.update((f) => ({ ...f, [clave]: '', ...(clave === 'origen' ? { modificacionCmn: '' } : {}) }));
+    this.pagina.set(1);
+  }
+
+  borrarFiltros(): void {
+    this.filtros.set({ ...SIN_FILTROS });
+    this.pagina.set(1);
   }
 
   aplicarFiltros(): void {

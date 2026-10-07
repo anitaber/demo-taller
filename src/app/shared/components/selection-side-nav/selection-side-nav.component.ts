@@ -1,6 +1,7 @@
 import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 
+import { TagComponent } from '../../ui/tag/tag.component';
 import { ButtonComponent } from '../../ui/button/button.component';
 import { IconComponent } from '../../ui/icon/icon.component';
 import { SidePanelAnimacion } from '../../ui/side-panel-animacion';
@@ -106,7 +107,7 @@ export type SelectionMode = 'single' | 'multiple';
 @Component({
   selector: 'siaf-selection-side-nav',
   standalone: true,
-  imports: [FocoDirective, ButtonComponent, FormTableSearchComponent, IconComponent, NgClass, PaginationComponent, TableControlsComponent],
+  imports: [FocoDirective, ButtonComponent, FormTableSearchComponent, IconComponent, NgClass, PaginationComponent, TableControlsComponent, TagComponent],
   template: `
     @if (anim.visible()) {
       <section
@@ -149,6 +150,19 @@ export type SelectionMode = 'single' | 'multiple';
               (valueChange)="searchChange.emit($event)"
               (filter)="filterRequested.emit()"
             />
+
+            @if (appliedFilters.length) {
+              <!-- Filtros aplicados: cada uno se quita con su × y «Borrar filtros» los quita todos. -->
+              <div class="mt-siaf-md flex flex-wrap items-center justify-between gap-siaf-sm">
+                <div class="flex min-w-0 flex-wrap items-center gap-siaf-xs">
+                  <span class="text-[10px] font-bold uppercase tracking-[0.66px] text-text">Filtrar por</span>
+                  @for (filtro of appliedFilters; track filtro.key) {
+                    <siaf-tag variant="input" size="small" [removable]="true" [removeLabel]="'Quitar filtro ' + filtro.label" (removed)="filterRemoved.emit(filtro.key)">{{ filtro.label }}</siaf-tag>
+                  }
+                </div>
+                <siaf-button variant="outline" size="sm" icon="close" iconPosition="end" (click)="filtersCleared.emit()">Borrar filtros</siaf-button>
+              </div>
+            }
 
             @if (mode === 'multiple' && showSelectAll) {
               <div class="mt-siaf-md">
@@ -326,6 +340,8 @@ export class SelectionSideNavComponent<T = Record<string, unknown>> implements O
    */
   @Input() filterOpen = false;
   @Input() filterTitle = 'Filtrar';
+  /** Filtros ya aplicados (clave y texto): se pintan bajo el buscador con «Filtrar por», una × por filtro y «Borrar filtros». */
+  @Input() appliedFilters: Array<{ key: string; label: string }> = [];
   @Input() applyLabel = 'Aplicar';
   /** 'single' (radio) o 'multiple' (checkbox). */
   @Input() mode: SelectionMode = 'single';
@@ -412,6 +428,10 @@ export class SelectionSideNavComponent<T = Record<string, unknown>> implements O
   @Output() filterRequested = new EventEmitter<void>();
   /** Cancelar de la columna «Filtrar». */
   @Output() filterCanceled = new EventEmitter<void>();
+  /** La × de un filtro aplicado: emite su clave. */
+  @Output() filterRemoved = new EventEmitter<string>();
+  /** «Borrar filtros»: quita todos los aplicados. */
+  @Output() filtersCleared = new EventEmitter<void>();
   /** Aplicar de la columna «Filtrar». */
   @Output() filterApplied = new EventEmitter<void>();
 

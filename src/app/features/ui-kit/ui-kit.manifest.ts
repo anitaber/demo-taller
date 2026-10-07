@@ -10518,6 +10518,13 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "descripcion": null
       },
       {
+        "nombre": "appliedFilters",
+        "tipo": "{ key: string; label: string; }[]",
+        "porDefecto": "[]",
+        "requerida": false,
+        "descripcion": "Filtros ya aplicados (clave y texto): se pintan bajo el buscador con «Filtrar por», una × por filtro y «Borrar filtros»."
+      },
+      {
         "nombre": "applyLabel",
         "tipo": "string",
         "porDefecto": "'Aplicar'",
@@ -10764,9 +10771,19 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
         "descripcion": "Cancelar de la columna «Filtrar»."
       },
       {
+        "nombre": "filterRemoved",
+        "tipo": "string",
+        "descripcion": "La × de un filtro aplicado: emite su clave."
+      },
+      {
         "nombre": "filterRequested",
         "tipo": "void",
         "descripcion": "Click en el ícono de filtro del buscador."
+      },
+      {
+        "nombre": "filtersCleared",
+        "tipo": "void",
+        "descripcion": "«Borrar filtros»: quita todos los aplicados."
       },
       {
         "nombre": "nextPage",
@@ -10888,6 +10905,7 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
       {
         "token": "--sys-gap-base-sm",
         "via": [
+          "gap-siaf-sm",
           "px-siaf-sm",
           "py-siaf-sm"
         ]
@@ -10925,7 +10943,8 @@ export const MANIFIESTO_UI_KIT: readonly FichaComponente[] = [
       "siaf-form-table-search",
       "siaf-icon",
       "siaf-pagination",
-      "siaf-table-controls"
+      "siaf-table-controls",
+      "siaf-tag"
     ],
     "sinUso": false
   },
